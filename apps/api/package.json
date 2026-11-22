@@ -1,0 +1,30 @@
+{
+  "name": "@justlakshmi/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "JustLakshmi Fastify v5 TypeScript API backend.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "lint": "eslint src tests",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@justlakshmi/shared": "*",
+    "@supabase/supabase-js": "^2.49.0",
+    "fastify": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@justlakshmi/config": "*",
+    "@types/node": "^22.20.5",
+    "eslint": "^9.39.5",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3"
+  }
+}
