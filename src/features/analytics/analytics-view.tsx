@@ -8,7 +8,9 @@ import { ProgressRing } from "@/components/ui/progress-ring";
 import { Skeleton } from "@/components/ui/skeleton";
 import { habitStreak, overallStreak, percent, sumCompletion } from "@/domain/analytics";
 import { useDemoStore } from "@/features/demo/demo-store";
-import { addDays, dayOfMonth, weekdayShort } from "@/lib/dates";
+import { addDays, fromISODate, weekdayShort } from "@/lib/dates";
+
+const shortDate = (iso: string) => fromISODate(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
 export function AnalyticsView() {
   const store = useDemoStore();
@@ -45,8 +47,8 @@ export function AnalyticsView() {
         Every figure on this page is generated from sample tasks. It does not describe real activity.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="flex items-center gap-4 p-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <Card className="col-span-2 flex items-center gap-4 p-5 sm:col-span-1">
           <ProgressRing percent={percent(todayC.completed, todayC.scheduled)} size={80} stroke={7} label="Today's completion" />
           <div>
             <p className="text-sm text-ink-3">Today</p>
@@ -110,21 +112,23 @@ export function AnalyticsView() {
             {month.map((d) => {
               const p = percent(d.completed, d.scheduled);
               return (
-                <div key={d.date} aria-hidden className="relative aspect-square rounded-[6px] bg-surface-2">
-                  <div className="absolute inset-0 rounded-[6px] bg-inverse" style={{ opacity: p / 100 }} />
-                  <span className="absolute inset-0 grid place-items-center text-[0.625rem] tabular-nums mix-blend-difference text-white">
-                    {dayOfMonth(d.date)}
-                  </span>
+                <div key={d.date} aria-hidden className="aspect-square rounded-[6px] bg-surface-2">
+                  <div className="size-full rounded-[6px] bg-inverse" style={{ opacity: Math.max(p / 100, 0.04) }} />
                 </div>
               );
             })}
           </div>
-          <p className="mt-3 flex items-center gap-2 text-xs text-ink-3">
-            Less
-            {[0.15, 0.4, 0.7, 1].map((o) => (
-              <span key={o} aria-hidden className="size-3 rounded-[4px] bg-inverse" style={{ opacity: o }} />
-            ))}
-            More
+          <p className="mt-3 flex items-center justify-between gap-2 text-xs text-ink-3">
+            <span>
+              {shortDate(month[0]?.date ?? today)} to {shortDate(today)}
+            </span>
+            <span className="flex items-center gap-2">
+              Less
+              {[0.15, 0.4, 0.7, 1].map((o) => (
+                <span key={o} aria-hidden className="size-3 rounded-[4px] bg-inverse" style={{ opacity: o }} />
+              ))}
+              More
+            </span>
           </p>
         </Card>
       </section>
