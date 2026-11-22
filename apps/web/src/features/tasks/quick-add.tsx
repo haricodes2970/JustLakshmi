@@ -2,38 +2,57 @@
 
 import { useId, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
+import type { Category, ISODate, LocalTime, Recurrence, ReminderConfig, TaskMode, Weekday } from "@justlakshmi/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { WEEKDAY_LABELS } from "@/lib/dates";
-import type { Category, LocalTime, Recurrence, Weekday } from "@/types";
 
-export type QuickAddValue = { title: string; categoryId?: string; time?: LocalTime; recurrence?: Recurrence };
+export type QuickAddValue = {
+  title: string;
+  categoryId?: string;
+  time?: LocalTime;
+  mode: TaskMode;
+  targetValue?: number;
+  unit?: string;
+  targetDurationMinutes?: number;
+  recurrence?: Recurrence;
+  reminder: ReminderConfig;
+};
 
 const fieldClass =
   "min-h-11 w-full rounded-ui border border-line bg-surface px-3 text-ink placeholder:text-ink-3 focus-visible:outline-2";
 
 /**
- * Quick add needs only a title. Time, category and (for routines) schedule are
- * progressively disclosed. Nothing is saved anywhere: demo store only.
+ * Quick add requires only a task name. Optional fields (time, category, mode/target,
+ * recurrence, reminder) are progressively disclosed.
  */
 export function QuickAdd({
   mode,
   categories,
+  today,
   onSubmit,
   contextLabel,
 }: {
   mode: "task" | "routine";
   categories: readonly Category[];
-  onSubmit: (value: QuickAddValue) => void;
+  today: ISODate;
+  onSubmit: (value: QuickAddValue) => void | Promise<void>;
   contextLabel?: string;
 }) {
   const uid = useId();
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [taskMode, setTaskMode] = useState<TaskMode>("checkbox");
+  const [targetValue, setTargetValue] = useState("2000");
+  const [unit, setUnit] = useState("ml");
+  const [targetMinutes, setTargetMinutes] = useState("20");
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [overdueEnabled, setOverdueEnabled] = useState(false);
   const [open, setOpen] = useState(false);
-  const [scheduleKind, setScheduleKind] = useState<"daily" | "weekdays">("daily");
+  const [scheduleKind, setScheduleKind] = useState<"daily" | "weekdays" | "custom">("daily");
   const [days, setDays] = useState<Weekday[]>([1, 2, 3, 4, 5]);
+  const [intervalDays, setIntervalDays] = useState("2");
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
 
   const noun = mode === "task" ? "task" : "routine";
@@ -42,7 +61,7 @@ export function QuickAdd({
     setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed) {
@@ -53,25 +72,57 @@ export function QuickAdd({
       setMessage({ kind: "error", text: "Choose at least one day." });
       return;
     }
-    onSubmit({
+
+    const parsedInterval = Math.max(1, Math.min(365, Math.floor(Number(intervalDays) || 1)));
+    const parsedTarget = Number(targetValue);
+    const parsedMinutes = Number(targetMinutes);
+
+    if (taskMode === "measurable" && (!parsedTarget || parsedTarget <= 0)) {
+      setMessage({ kind: "error", text: "Enter a positive target quantity." });
+      return;
+    }
+    if (taskMode === "duration" && (!parsedMinutes || parsedMinutes <= 0)) {
+      setMessage({ kind: "error", text: "Enter a positive duration in minutes." });
+      return;
+    }
+
+    const recurrence: Recurrence | undefined =
+      mode === "routine"
+        ? scheduleKind === "daily"
+          ? { kind: "daily", startsOn: today }
+          : scheduleKind === "weekdays"
+            ? { kind: "weekdays", days: [...days].sort() as Weekday[], startsOn: today }
+            : { kind: "custom", intervalDays: parsedInterval, startsOn: today }
+        : undefined;
+
+    await onSubmit({
       title: trimmed,
       categoryId: categoryId || undefined,
       time: time || undefined,
-      recurrence:
-        mode === "routine"
-          ? scheduleKind === "daily"
-            ? { kind: "daily" }
-            : { kind: "weekdays", days: [...days].sort() }
-          : undefined,
+      mode: taskMode,
+      targetValue: taskMode === "measurable" ? parsedTarget : undefined,
+      unit: taskMode === "measurable" ? unit.trim() || "units" : undefined,
+      targetDurationMinutes: taskMode === "duration" ? parsedMinutes : undefined,
+      recurrence,
+      reminder: {
+        enabled: reminderEnabled,
+        time: reminderEnabled && time ? time : undefined,
+        overdueEnabled: reminderEnabled && overdueEnabled,
+        overdueDelayMinutes: 30,
+      },
     });
+
     setTitle("");
     setTime("");
     setCategoryId("");
-    setMessage({ kind: "ok", text: `Added to demo ${contextLabel ?? noun}s. Not saved.` });
+    setTaskMode("checkbox");
+    setReminderEnabled(false);
+    setOverdueEnabled(false);
+    setMessage({ kind: "ok", text: `Saved ${contextLabel ?? noun} locally.` });
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={(e) => void submit(e)} className="space-y-3" noValidate>
       <div className="flex gap-2">
         <label htmlFor={`${uid}-title`} className="sr-only">
           New {noun} name
@@ -128,6 +179,63 @@ export function QuickAdd({
             </select>
           </div>
 
+          <div className="sm:col-span-2">
+            <label htmlFor={`${uid}-mode`} className="mb-1 block text-xs text-ink-3">
+              Tracking mode
+            </label>
+            <select
+              id={`${uid}-mode`}
+              value={taskMode}
+              onChange={(e) => setTaskMode(e.target.value as TaskMode)}
+              className={fieldClass}
+            >
+              <option value="checkbox">Checkbox (tap to complete)</option>
+              <option value="measurable">Measurable target (e.g. ml, pages)</option>
+              <option value="duration">Duration target (minutes)</option>
+            </select>
+          </div>
+
+          {taskMode === "measurable" ? (
+            <>
+              <div>
+                <label htmlFor={`${uid}-target`} className="mb-1 block text-xs text-ink-3">
+                  Target quantity
+                </label>
+                <input
+                  id={`${uid}-target`}
+                  type="number"
+                  min={1}
+                  step="any"
+                  value={targetValue}
+                  onChange={(e) => setTargetValue(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <label htmlFor={`${uid}-unit`} className="mb-1 block text-xs text-ink-3">
+                  Unit
+                </label>
+                <input id={`${uid}-unit`} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="ml, pages, steps" className={fieldClass} />
+              </div>
+            </>
+          ) : null}
+
+          {taskMode === "duration" ? (
+            <div className="sm:col-span-2">
+              <label htmlFor={`${uid}-dur`} className="mb-1 block text-xs text-ink-3">
+                Target duration (minutes)
+              </label>
+              <input
+                id={`${uid}-dur`}
+                type="number"
+                min={1}
+                value={targetMinutes}
+                onChange={(e) => setTargetMinutes(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+          ) : null}
+
           {mode === "routine" ? (
             <fieldset className="sm:col-span-2">
               <legend className="mb-1 text-xs text-ink-3">Repeats</legend>
@@ -136,6 +244,7 @@ export function QuickAdd({
                   [
                     ["daily", "Every day"],
                     ["weekdays", "Selected days"],
+                    ["custom", "Every N days"],
                   ] as const
                 ).map(([value, label]) => (
                   <label
@@ -174,9 +283,47 @@ export function QuickAdd({
                   ))}
                 </div>
               ) : null}
-              <p className="mt-2 text-xs text-ink-3">Custom repeat rules arrive in a later phase.</p>
+              {scheduleKind === "custom" ? (
+                <div className="mt-3">
+                  <label htmlFor={`${uid}-int`} className="mb-1 block text-xs text-ink-3">
+                    Repeat every N days
+                  </label>
+                  <input
+                    id={`${uid}-int`}
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={intervalDays}
+                    onChange={(e) => setIntervalDays(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+              ) : null}
             </fieldset>
           ) : null}
+
+          <div className="flex flex-wrap gap-4 sm:col-span-2">
+            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm text-ink-2">
+              <input
+                type="checkbox"
+                checked={reminderEnabled}
+                onChange={(e) => setReminderEnabled(e.target.checked)}
+                className="size-4 accent-ink"
+              />
+              Enable reminder
+            </label>
+            {reminderEnabled ? (
+              <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm text-ink-2">
+                <input
+                  type="checkbox"
+                  checked={overdueEnabled}
+                  onChange={(e) => setOverdueEnabled(e.target.checked)}
+                  className="size-4 accent-ink"
+                />
+                One overdue reminder (+30m)
+              </label>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

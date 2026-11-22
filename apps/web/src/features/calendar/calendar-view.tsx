@@ -1,26 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DemoBadge } from "@/components/ui/demo-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, SectionHeading } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeekStrip } from "@/features/calendar/week-strip";
-import { useDemoStore } from "@/features/demo/demo-store";
 import { TaskRow } from "@/features/tasks/task-row";
+import { useWorkspace } from "@/features/workspace/workspace-provider";
 import { cn } from "@/lib/cn";
 import { WEEKDAY_LABELS, addMonths, dayOfMonth, formatLong, formatMonthYear, monthGrid, weekDates } from "@/lib/dates";
 
 const HEADER_DAYS = [1, 2, 3, 4, 5, 6, 0] as const;
 
 export function CalendarView() {
-  const store = useDemoStore();
+  const ws = useWorkspace();
   const [picked, setPicked] = useState<string | null>(null);
 
-  if (!store.ready) {
+  if (!ws.ready) {
     return (
       <div role="status" aria-label="Loading calendar" className="space-y-4">
         <Skeleton className="h-12 w-1/2" />
@@ -29,19 +29,20 @@ export function CalendarView() {
     );
   }
 
-  const today = store.today;
+  const today = ws.today;
   const selected = picked ?? today;
-  const items = store.occurrencesOn(selected);
+  const items = ws.occurrencesOn(selected);
   const done = items.filter((o) => o.completed).length;
   const cells = monthGrid(selected);
+  const journal = ws.getJournal(selected);
 
   const goMonth = (delta: number) => setPicked(addMonths(selected, delta));
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Calendar" subtitle="Plan ahead and look back." action={<DemoBadge label="Sample data" />} />
+      <PageHeader title="Calendar" subtitle={`Plan ahead and look back (${ws.timeZone}).`} />
 
-      <WeekStrip dates={weekDates(selected)} selected={selected} today={today} onSelect={setPicked} progressOf={store.completionOn} />
+      <WeekStrip dates={weekDates(selected)} selected={selected} today={today} onSelect={setPicked} progressOf={ws.completionOn} />
 
       <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
         <section aria-label="Month" className="min-w-0">
@@ -73,7 +74,7 @@ export function CalendarView() {
             <div className="grid grid-cols-7 gap-1">
               {cells.map((date, i) => {
                 if (!date) return <span key={`pad-${i}`} aria-hidden />;
-                const c = store.completionOn(date);
+                const c = ws.completionOn(date);
                 const pending = c.scheduled - c.completed;
                 const isSelected = date === selected;
                 const isToday = date === today;
@@ -115,19 +116,28 @@ export function CalendarView() {
           </p>
         </section>
 
-        <section aria-labelledby="day-heading" className="min-w-0">
+        <section aria-labelledby="day-heading" className="min-w-0 space-y-4">
           <SectionHeading id="day-heading">{formatLong(selected)}</SectionHeading>
           <Card className="overflow-hidden">
-            <div className="border-b border-line px-4 py-3 text-sm text-ink-3" aria-live="polite">
-              {items.length === 0 ? (
-                "Nothing scheduled"
-              ) : (
-                <>
-                  <span className="font-semibold text-ink tabular-nums">{done}</span> of {items.length} done
-                  <span aria-hidden> · </span>
-                  <span className="tabular-nums">{items.length - done}</span> pending
-                </>
-              )}
+            <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3 text-sm text-ink-3" aria-live="polite">
+              <span>
+                {items.length === 0 ? (
+                  "Nothing scheduled"
+                ) : (
+                  <>
+                    <span className="font-semibold text-ink tabular-nums">{done}</span> of {items.length} done
+                    <span aria-hidden> · </span>
+                    <span className="tabular-nums">{items.length - done}</span> pending
+                  </>
+                )}
+              </span>
+              <Link
+                href={`/journal?date=${selected}`}
+                className="inline-flex items-center gap-1 text-xs font-medium text-ink underline underline-offset-4"
+              >
+                <BookOpen aria-hidden className="size-3.5" />
+                {journal ? "Journal" : "Add journal"}
+              </Link>
             </div>
             {items.length === 0 ? (
               <EmptyState icon={CalendarDays} title="A clear day" description="No tasks are scheduled for this date." />
@@ -135,12 +145,19 @@ export function CalendarView() {
               <ul className="divide-y divide-line">
                 {items.map((o) => (
                   <TaskRow
-                    key={o.key}
-                    title={o.title}
+                    key={o.id}
+                    title={o.titleSnapshot}
                     time={o.time}
-                    category={o.categoryId ? store.categoryName(o.categoryId) : undefined}
+                    category={o.categoryIdSnapshot ? ws.categoryName(o.categoryIdSnapshot) : undefined}
                     completed={o.completed}
-                    onToggle={() => store.toggle(o.templateId, o.date)}
+                    mode={o.mode}
+                    progressValue={o.progressValue}
+                    targetValue={o.targetValue}
+                    unit={o.unit}
+                    targetDurationMinutes={o.targetDurationMinutes}
+                    onToggle={() => void ws.toggleOccurrence(o.templateId, o.date)}
+                    onIncrement={(delta) => void ws.recordProgress(o.templateId, o.date, delta)}
+                    onCorrect={(val) => void ws.correctProgress(o.templateId, o.date, val)}
                   />
                 ))}
               </ul>
