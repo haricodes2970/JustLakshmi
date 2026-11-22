@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowUp, Brain, KeyRound, MessageCircle, Pin, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { AI_DEFAULT_MODELS, type AiProviderId } from "@justlakshmi/shared";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,12 @@ const PROVIDERS: readonly { id: AiProviderId; label: string }[] = [
 ];
 
 export function AiView() {
+  const auth = useAuth();
+  // Keying by account ID guarantees BYOK keys and chat history are cleared on sign-out or account switch.
+  return <AiViewInner key={auth.user?.id ?? "guest"} />;
+}
+
+function AiViewInner() {
   const uid = useId();
   const auth = useAuth();
   const ws = useWorkspace();
@@ -54,6 +60,14 @@ export function AiView() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const activeAbortRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight AI request immediately if user revokes external AI consent.
+  useEffect(() => {
+    if (!ws.aiConsent.granted) {
+      activeAbortRef.current?.abort();
+    }
+  }, [ws.aiConsent.granted]);
 
   const [newMemory, setNewMemory] = useState("");
 
@@ -120,6 +134,9 @@ export function AiView() {
     setMessages((prev) => [...prev, { id: `u_${Date.now()}`, role: "user", text: question }]);
     setSending(true);
 
+    const controller = new AbortController();
+    activeAbortRef.current = controller;
+
     try {
       const { contextRecords, memories } = buildGroundedAiContext({
         today: ws.today,
@@ -130,16 +147,20 @@ export function AiView() {
         includeJournalContext: ws.aiConsent.includeJournal,
       });
 
-      const res = await sendAiChat(auth.accessToken, {
-        provider: activeKey.provider,
-        apiKey: activeKey.apiKey,
-        model: activeKey.model,
-        consentGranted: true,
-        includeJournalContext: ws.aiConsent.includeJournal,
-        message: question,
-        contextRecords,
-        memories,
-      });
+      const res = await sendAiChat(
+        auth.accessToken,
+        {
+          provider: activeKey.provider,
+          apiKey: activeKey.apiKey,
+          model: activeKey.model,
+          consentGranted: true,
+          includeJournalContext: ws.aiConsent.includeJournal,
+          message: question,
+          contextRecords,
+          memories,
+        },
+        controller.signal,
+      );
 
       setMessages((prev) => [
         ...prev,

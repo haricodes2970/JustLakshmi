@@ -51,7 +51,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) return;
 
   // Page navigations: network first, then cached copy, then offline fallback.
   if (request.mode === "navigate") {
