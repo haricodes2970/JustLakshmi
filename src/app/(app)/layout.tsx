@@ -16,7 +16,7 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
         <MobileHeader />
         <main
           id="main"
-          className="pl-safe pr-safe mx-auto w-full max-w-4xl px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-16"
+          className="mx-auto w-full max-w-4xl pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:pb-16"
         >
           {children}
         </main>
