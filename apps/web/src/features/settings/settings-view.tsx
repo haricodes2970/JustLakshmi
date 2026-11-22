@@ -274,14 +274,41 @@ export function SettingsView() {
         <Section id="s-privacy" icon={ShieldCheck} title="Privacy & Data Export">
           <div className="space-y-3 text-sm">
             <p className="text-xs text-ink-3">
-              Your routines, occurrences, journals, and AI memories are stored in local IndexedDB and your Google Drive{" "}
+              Active local store:{" "}
+              <strong className="text-ink-2">
+                {ws.scope.kind === "user" ? "Authenticated user-scoped IndexedDB" : "Guest device IndexedDB"}
+              </strong>
+              . Guest data is never automatically merged into a signed-in account.
+            </p>
+            <p className="text-xs text-ink-3">
+              Your routines, occurrences, journals, and AI memories are stored in isolated IndexedDB and your Google Drive{" "}
               <strong>{PRODUCT.driveRootFolderName}</strong> folder — never in Supabase. Google Drive access tokens stay in
               memory only.
             </p>
-            <Button variant="secondary" onClick={downloadExport}>
-              <Download aria-hidden className="size-4" />
-              Export workspace JSON
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={downloadExport}>
+                <Download aria-hidden className="size-4" />
+                Export workspace JSON
+              </Button>
+              {ws.legacyUnscoped.exists && ws.legacyUnscoped.recordCount > 0 ? (
+                <Button
+                  variant="ghost"
+                  onClick={async () => {
+                    const legacy = await ws.exportLegacyJson();
+                    if (!legacy) return;
+                    const blob = new Blob([legacy], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `justlakshmi-legacy-export-${ws.today}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  Export legacy unscoped data ({ws.legacyUnscoped.recordCount})
+                </Button>
+              ) : null}
+            </div>
             <p className="text-xs text-ink-3">Exports exclude OAuth tokens and AI provider API keys.</p>
           </div>
         </Section>
