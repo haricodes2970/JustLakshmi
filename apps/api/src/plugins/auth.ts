@@ -6,6 +6,7 @@ import { AppError } from "./error-handler.js";
 declare module "fastify" {
   interface FastifyRequest {
     authUser?: AuthUser;
+    accessToken?: string;
   }
 }
 
@@ -32,5 +33,6 @@ export function createRequireAuth(verifier: TokenVerifier): preHandlerHookHandle
     }
 
     request.authUser = user;
+    request.accessToken = token;
   };
 }
