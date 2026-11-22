@@ -7,9 +7,14 @@ import { getSupabaseClient } from "@/lib/supabase";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("error_description") ?? params.get("error");
+  });
 
   useEffect(() => {
+    if (error) return;
     const client = getSupabaseClient();
     if (!client) {
       router.replace("/settings");
@@ -18,11 +23,6 @@ export default function AuthCallbackPage() {
 
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
-    const oauthError = params.get("error_description") ?? params.get("error");
-    if (oauthError) {
-      setError(oauthError);
-      return;
-    }
 
     if (code) {
       client.auth
@@ -35,7 +35,7 @@ export default function AuthCallbackPage() {
     } else {
       client.auth.getSession().then(() => router.replace("/"));
     }
-  }, [router]);
+  }, [error, router]);
 
   return (
     <main className="grid min-h-dvh place-items-center px-6 text-center">
