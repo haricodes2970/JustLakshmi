@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Pin the workspace root so a lockfile in a parent directory is never picked up.
+  turbopack: { root: import.meta.dirname },
   async headers() {
     return [
       {
