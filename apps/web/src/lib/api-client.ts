@@ -1,19 +1,36 @@
 import {
   API_PREFIX,
+  AiChatRequestSchema,
+  AiChatResponseSchema,
+  AiTestProviderRequestSchema,
+  AiTestProviderResponseSchema,
   ApiErrorResponseSchema,
   ApiV1StatusResponseSchema,
   AuthMeResponseSchema,
+  DriveConnectionMetadataSchema,
   DriveConnectionValidationResponseSchema,
   HealthResponseSchema,
+  NotificationJobResponseSchema,
+  PushSubscriptionInputSchema,
+  ScheduleNotificationJobRequestSchema,
   UpdateDriveConnectionRequestSchema,
+  type AiChatRequest,
+  type AiChatResponse,
+  type AiTestProviderRequest,
+  type AiTestProviderResponse,
   type ApiErrorCode,
   type ApiErrorDetail,
   type ApiV1StatusResponse,
   type AuthMeResponse,
+  type DriveConnectionMetadata,
   type DriveConnectionValidationResponse,
   type HealthResponse,
+  type NotificationJobResponse,
+  type PushSubscriptionInput,
+  type ScheduleNotificationJobRequest,
   type UpdateDriveConnectionRequest,
 } from "@justlakshmi/shared";
+import { z } from "zod";
 
 type Parseable<T> = { parse: (input: unknown) => T };
 
@@ -145,6 +162,104 @@ export function validateDriveConnectionMetadata(
     method: "POST",
     accessToken,
     body: validatedBody,
+    signal,
+  });
+}
+
+const DriveConnectionEnvelopeSchema = z.object({
+  connection: DriveConnectionMetadataSchema.nullable(),
+});
+
+export async function fetchDriveConnection(
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<DriveConnectionMetadata | null> {
+  const res = await apiRequest(`${API_PREFIX}/drive/connection`, DriveConnectionEnvelopeSchema, {
+    accessToken,
+    signal,
+  });
+  return res.connection;
+}
+
+export async function saveDriveConnection(
+  accessToken: string,
+  payload: UpdateDriveConnectionRequest,
+  signal?: AbortSignal,
+): Promise<DriveConnectionMetadata | null> {
+  const validatedBody = UpdateDriveConnectionRequestSchema.parse(payload);
+  const res = await apiRequest(`${API_PREFIX}/drive/connection`, DriveConnectionEnvelopeSchema, {
+    method: "PUT",
+    accessToken,
+    body: validatedBody,
+    signal,
+  });
+  return res.connection;
+}
+
+export function testAiProvider(
+  accessToken: string,
+  payload: AiTestProviderRequest,
+  signal?: AbortSignal,
+): Promise<AiTestProviderResponse> {
+  const validatedBody = AiTestProviderRequestSchema.parse(payload);
+  return apiRequest(`${API_PREFIX}/ai/test-provider`, AiTestProviderResponseSchema, {
+    method: "POST",
+    accessToken,
+    body: validatedBody,
+    signal,
+  });
+}
+
+export function sendAiChat(
+  accessToken: string,
+  payload: AiChatRequest,
+  signal?: AbortSignal,
+): Promise<AiChatResponse> {
+  const validatedBody = AiChatRequestSchema.parse(payload);
+  return apiRequest(`${API_PREFIX}/ai/chat`, AiChatResponseSchema, {
+    method: "POST",
+    accessToken,
+    body: validatedBody,
+    signal,
+  });
+}
+
+export function registerPushSubscription(
+  accessToken: string,
+  sub: PushSubscriptionInput,
+  signal?: AbortSignal,
+): Promise<{ stored: boolean; workerConfigured: boolean }> {
+  const validatedBody = PushSubscriptionInputSchema.parse(sub);
+  return apiRequest(
+    `${API_PREFIX}/push/subscriptions`,
+    z.object({ stored: z.boolean(), workerConfigured: z.boolean() }),
+    { method: "POST", accessToken, body: validatedBody, signal },
+  );
+}
+
+export function scheduleNotificationJob(
+  accessToken: string,
+  job: ScheduleNotificationJobRequest,
+  signal?: AbortSignal,
+): Promise<NotificationJobResponse> {
+  const validatedBody = ScheduleNotificationJobRequestSchema.parse(job);
+  return apiRequest(`${API_PREFIX}/push/schedule`, NotificationJobResponseSchema, {
+    method: "POST",
+    accessToken,
+    body: validatedBody,
+    signal,
+  });
+}
+
+export function cancelNotificationJobs(
+  accessToken: string,
+  occurrenceId: string,
+  signal?: AbortSignal,
+): Promise<{ cancelledCount: number }> {
+  return apiRequest(`${API_PREFIX}/push/cancel`, z.object({ cancelledCount: z.number().int().nonnegative() }), {
+    method: "POST",
+    accessToken,
+    body: { occurrenceId },
     signal,
   });
 }

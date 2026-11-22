@@ -1,19 +1,21 @@
-import { templatesOn } from "@/domain/recurrence";
+import type { Category, ISODate, TaskOccurrence, TaskTemplate } from "@justlakshmi/shared";
 import { addDays } from "@/lib/dates";
-import type { DayCompletion, ISODate, TaskTemplate } from "@/types";
+import { occursOn } from "./recurrence";
 
-export function completionOn(
-  templates: readonly TaskTemplate[],
-  date: ISODate,
-  isDone: (templateId: string, date: ISODate) => boolean,
-): DayCompletion {
-  const scheduled = templatesOn(templates, date);
-  const completed = scheduled.filter((t) => isDone(t.id, date)).length;
-  return { date, scheduled: scheduled.length, completed };
-}
+export type DayCompletion = {
+  date: ISODate;
+  scheduled: number;
+  completed: number;
+};
 
 export function percent(completed: number, scheduled: number): number {
   return scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100);
+}
+
+export function completionFromOccurrences(date: ISODate, occurrences: readonly TaskOccurrence[]): DayCompletion {
+  const forDay = occurrences.filter((o) => o.date === date);
+  const completed = forDay.filter((o) => o.completed).length;
+  return { date, scheduled: forDay.length, completed };
 }
 
 export function sumCompletion(days: readonly DayCompletion[]): { scheduled: number; completed: number; percent: number } {
@@ -23,20 +25,21 @@ export function sumCompletion(days: readonly DayCompletion[]): { scheduled: numb
 }
 
 /**
- * Habit streak: consecutive scheduled dates completed, ending at `today`.
- * Unscheduled days never break a streak. If today is still pending it is skipped
- * rather than counted as a miss, so a streak is never broken by the current day.
+ * Individual habit streak: consecutive scheduled dates completed, ending at `today`.
+ * Unscheduled days NEVER break a streak. If today is still pending, it does not
+ * break an active streak from prior scheduled days.
  */
 export function habitStreak(
   template: TaskTemplate,
   today: ISODate,
   isDone: (templateId: string, date: ISODate) => boolean,
-  lookbackDays = 120,
+  lookbackDays = 180,
 ): number {
+  if (template.recurrence.kind === "once") return 0;
   let streak = 0;
   for (let i = 0; i <= lookbackDays; i++) {
     const date = addDays(today, -i);
-    if (templatesOn([template], date).length === 0) continue;
+    if (!occursOn(template.recurrence, date)) continue;
     if (isDone(template.id, date)) {
       streak += 1;
     } else if (i === 0) {
@@ -48,7 +51,7 @@ export function habitStreak(
   return streak;
 }
 
-/** A day counts toward the overall streak when at least `threshold` percent was completed. */
+/** Overall daily consistency streak: consecutive days with scheduled tasks >= threshold%. */
 export function overallStreak(days: readonly DayCompletion[], threshold = 70): number {
   let streak = 0;
   for (let i = days.length - 1; i >= 0; i--) {
@@ -59,4 +62,39 @@ export function overallStreak(days: readonly DayCompletion[], threshold = 70): n
     else break;
   }
   return streak;
+}
+
+export type CategorySummary = {
+  categoryId: string;
+  name: string;
+  scheduled: number;
+  completed: number;
+  percent: number;
+};
+
+export function categoryBreakdown(
+  occurrences: readonly TaskOccurrence[],
+  categories: readonly Category[],
+): CategorySummary[] {
+  const map = new Map<string, { scheduled: number; completed: number }>();
+  for (const occ of occurrences) {
+    const key = occ.categoryIdSnapshot ?? "uncategorized";
+    const cur = map.get(key) ?? { scheduled: 0, completed: 0 };
+    cur.scheduled += 1;
+    if (occ.completed) cur.completed += 1;
+    map.set(key, cur);
+  }
+
+  return Array.from(map.entries())
+    .map(([categoryId, stats]) => ({
+      categoryId,
+      name:
+        categoryId === "uncategorized"
+          ? "Uncategorized"
+          : (categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized"),
+      scheduled: stats.scheduled,
+      completed: stats.completed,
+      percent: percent(stats.completed, stats.scheduled),
+    }))
+    .sort((a, b) => b.scheduled - a.scheduled);
 }
