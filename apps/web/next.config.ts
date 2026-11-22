@@ -1,10 +1,11 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // Pin the workspace root so a lockfile in a parent directory is never picked up.
-  turbopack: { root: import.meta.dirname },
+  // Pin Turbopack root to the monorepo root so hoisted workspace dependencies resolve cleanly.
+  turbopack: { root: path.resolve(import.meta.dirname, "../..") },
   async headers() {
     return [
       {

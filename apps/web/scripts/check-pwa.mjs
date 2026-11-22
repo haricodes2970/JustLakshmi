@@ -39,7 +39,8 @@ check(home.includes('rel="manifest"'), "HTML links the manifest");
 check(home.includes("apple-touch-icon"), "HTML links apple-touch-icon");
 check(home.includes("viewport-fit=cover"), "viewport uses viewport-fit=cover");
 
-await access(path.resolve("Assets/logo.png")).then(
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
+await access(path.resolve(REPO_ROOT, "Assets/logo.png")).then(
   () => check(true, "original Assets/logo.png still present"),
   () => check(false, "original Assets/logo.png missing"),
 );

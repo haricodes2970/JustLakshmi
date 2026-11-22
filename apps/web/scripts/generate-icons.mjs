@@ -4,9 +4,11 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const SRC = path.resolve("Assets/logo.png");
-const ICONS = path.resolve("public/icons");
-const BRAND = path.resolve("public/brand");
+const WEB_ROOT = path.resolve(import.meta.dirname, "..");
+const REPO_ROOT = path.resolve(WEB_ROOT, "../..");
+const SRC = path.resolve(REPO_ROOT, "Assets/logo.png");
+const ICONS = path.resolve(WEB_ROOT, "public/icons");
+const BRAND = path.resolve(WEB_ROOT, "public/brand");
 await mkdir(ICONS, { recursive: true });
 await mkdir(BRAND, { recursive: true });
 

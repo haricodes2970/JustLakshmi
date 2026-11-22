@@ -1,34 +1,27 @@
 {
-  "name": "justlakshmi",
+  "name": "justlakshmi-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "JustLakshmi - Plan. Track. Thrive. Phase 1 frontend foundation.",
+  "description": "JustLakshmi - Plan. Track. Thrive. Monorepo workspace.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.9.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "icons": "node scripts/generate-icons.mjs",
-    "check:pwa": "node scripts/check-pwa.mjs",
+    "dev": "npm run dev --workspace=@justlakshmi/web",
+    "dev:web": "npm run dev --workspace=@justlakshmi/web",
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace=@justlakshmi/web",
+    "start:web": "npm run start --workspace=@justlakshmi/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "icons": "npm run icons --workspace=@justlakshmi/web",
+    "check:pwa": "npm run check:pwa --workspace=@justlakshmi/web",
     "check": "npm run lint && npm run typecheck && npm run build"
-  },
-  "dependencies": {
-    "lucide-react": "^1.77.0",
-    "next": "^16.4.6",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.5",
-    "@types/node": "^22.20.5",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.6",
-    "postcss": "^8.5.33",
-    "sharp": "^0.35.5",
-    "tailwindcss": "^4.3.5",
-    "typescript": "^5.9.3"
   }
 }
