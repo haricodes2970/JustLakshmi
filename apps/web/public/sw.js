@@ -88,3 +88,44 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Web Push handler (active once Render worker & VAPID keys are configured).
+// iOS Web Push requires iOS 16.4+ installed to Home Screen and explicit user permission.
+self.addEventListener("push", (event) => {
+  let title = "JustLakshmi";
+  let body = "You have a scheduled routine reminder.";
+  let url = "/";
+  try {
+    const data = event.data ? event.data.json() : null;
+    if (data?.title) title = String(data.title);
+    if (data?.body) body = String(data.body);
+    if (data?.url) url = String(data.url);
+  } catch {
+    // Fall back to generic non-sensitive notification copy.
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/favicon-32.png",
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(targetUrl);
+    }),
+  );
+});
