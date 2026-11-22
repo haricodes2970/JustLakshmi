@@ -5,8 +5,8 @@ import { z } from "zod";
  * Supabase Auth JWT. Clients must never supply or override `id`.
  */
 export const AuthUserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email().nullable(),
+  id: z.uuid(),
+  email: z.email().nullable(),
   provider: z.string().nullable(),
   role: z.string().nullable(),
 });

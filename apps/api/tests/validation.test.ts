@@ -33,7 +33,7 @@ describe("shared package exports and request validation", () => {
     assert.equal(DRIVE_LEAST_PRIVILEGE_SCOPE, "https://www.googleapis.com/auth/drive.file");
   });
 
-  it("accepts valid Drive metadata payload on /api/v1/drive/connection/validate", async () => {
+  it("accepts valid verified Drive metadata payload on /api/v1/drive/connection/validate", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/drive/connection/validate",
@@ -43,6 +43,7 @@ describe("shared package exports and request validation", () => {
         folderId: "1AbCdEfGhIjKlMnOp",
         folderName: "Habbits",
         manifestFileId: "1ManifestId",
+        verifiedAt: "2026-11-22T09:15:00.000Z",
         schemaVersion: 1,
       },
     });
@@ -50,6 +51,44 @@ describe("shared package exports and request validation", () => {
     const parsed = DriveConnectionValidationResponseSchema.parse(res.json());
     assert.equal(parsed.valid, true);
     assert.equal(parsed.persisted, false);
+  });
+
+  it("rejects connected status when verifiedAt or manifestFileId is missing", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/drive/connection/validate",
+      headers: { authorization: `Bearer ${VALID_TEST_TOKEN}` },
+      payload: {
+        status: "connected",
+        folderId: "1AbCdEfGhIjKlMnOp",
+        folderName: "Habbits",
+        manifestFileId: "1ManifestId",
+        verifiedAt: null,
+        schemaVersion: 1,
+      },
+    });
+    assert.equal(res.statusCode, 400);
+    const parsed = ApiErrorResponseSchema.parse(res.json());
+    assert.equal(parsed.error.code, "VALIDATION_ERROR");
+  });
+
+  it("rejects manifestFileId when folderId is null", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/drive/connection/validate",
+      headers: { authorization: `Bearer ${VALID_TEST_TOKEN}` },
+      payload: {
+        status: "not_connected",
+        folderId: null,
+        folderName: "Habbits",
+        manifestFileId: "1OrphanManifest",
+        verifiedAt: null,
+        schemaVersion: 1,
+      },
+    });
+    assert.equal(res.statusCode, 400);
+    const parsed = ApiErrorResponseSchema.parse(res.json());
+    assert.equal(parsed.error.code, "VALIDATION_ERROR");
   });
 
   it("rejects wrong Drive folder name with 400 VALIDATION_ERROR", async () => {

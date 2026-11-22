@@ -35,7 +35,7 @@ export const DriveFileMetadataSchema = z.object({
   mimeType: z.string().min(1).max(128),
   schemaVersion: SchemaVersionSchema,
   checksumSha256: z.string().regex(/^[a-f0-9]{64}$/i, "Must be a 64-character hex SHA-256 checksum."),
-  modifiedTime: z.string().datetime(),
+  modifiedTime: z.iso.datetime(),
   sizeBytes: z.number().int().nonnegative().optional(),
 });
 export type DriveFileMetadata = z.infer<typeof DriveFileMetadataSchema>;
@@ -45,7 +45,7 @@ export const DriveManifestSchema = z.object({
   schemaVersion: SchemaVersionSchema,
   folderName: z.literal(DRIVE_ROOT_FOLDER_NAME),
   folderId: z.string().min(1).max(256),
-  updatedAt: z.string().datetime(),
+  updatedAt: z.iso.datetime(),
   files: z.array(DriveFileMetadataSchema),
 });
 export type DriveManifest = z.infer<typeof DriveManifestSchema>;
@@ -70,7 +70,7 @@ export const TombstoneSchema = z.object({
   entityType: DriveEntityTypeSchema,
   entityId: RecordIdSchema,
   baseVersion: z.number().int().nonnegative(),
-  deletedAt: z.string().datetime(),
+  deletedAt: z.iso.datetime(),
 });
 export type Tombstone = z.infer<typeof TombstoneSchema>;
 
@@ -93,8 +93,8 @@ export const OfflineMutationOutboxItemSchema = z.object({
   payload: z.unknown(),
   status: OutboxItemStatusSchema,
   attempts: z.number().int().nonnegative(),
-  createdAt: z.string().datetime(),
-  nextRetryAt: z.string().datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  nextRetryAt: z.iso.datetime().nullable(),
   lastError: z.string().max(500).nullable(),
 });
 export type OfflineMutationOutboxItem = z.infer<typeof OfflineMutationOutboxItemSchema>;
@@ -117,12 +117,12 @@ export const SyncConflictRecordSchema = z.object({
   entityId: RecordIdSchema,
   localVersion: z.number().int().nonnegative(),
   remoteVersion: z.number().int().nonnegative(),
-  localUpdatedAt: z.string().datetime(),
-  remoteUpdatedAt: z.string().datetime(),
+  localUpdatedAt: z.iso.datetime(),
+  remoteUpdatedAt: z.iso.datetime(),
   localSnapshot: z.unknown(),
   remoteSnapshot: z.unknown(),
-  detectedAt: z.string().datetime(),
-  resolvedAt: z.string().datetime().nullable(),
+  detectedAt: z.iso.datetime(),
+  resolvedAt: z.iso.datetime().nullable(),
   resolution: ConflictResolutionStrategySchema.nullable(),
 });
 export type SyncConflictRecord = z.infer<typeof SyncConflictRecordSchema>;

@@ -57,7 +57,7 @@ export function registerErrorHandlers(app: FastifyInstance): void {
 
     if (isZodLikeError(error)) {
       const details: ApiErrorDetail[] = error.issues.map((issue) => ({
-        path: issue.path.join(".") || "body",
+        path: issue.path.map(String).join(".") || "body",
         message: issue.message,
       }));
       reply.code(400).send(buildErrorBody("VALIDATION_ERROR", "Request validation failed.", request.id, details));
