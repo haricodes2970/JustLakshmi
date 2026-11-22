@@ -1,4 +1,5 @@
 import { BarChart3, Bot, CalendarDays, Home, ListChecks, type LucideIcon } from "lucide-react";
+import { DRIVE_ROOT_FOLDER_NAME } from "@justlakshmi/shared";
 
 /**
  * Product constants. Branding is configurable; persisted data must never depend on it.
@@ -8,7 +9,7 @@ export const PRODUCT = {
   displayName: "JustLakshmi",
   tagline: "Plan. Track. Thrive.",
   description: "Daily routines, tasks, calendar and progress, kept calm and simple.",
-  driveRootFolderName: "Habbits",
+  driveRootFolderName: DRIVE_ROOT_FOLDER_NAME,
 } as const;
 
 export type NavItem = {

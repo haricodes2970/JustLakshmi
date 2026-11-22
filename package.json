@@ -14,14 +14,19 @@
   "scripts": {
     "dev": "npm run dev --workspace=@justlakshmi/web",
     "dev:web": "npm run dev --workspace=@justlakshmi/web",
-    "build": "npm run build --workspaces --if-present",
-    "build:web": "npm run build --workspace=@justlakshmi/web",
+    "dev:api": "npm run dev --workspace=@justlakshmi/api",
+    "build": "npm run build --workspace=@justlakshmi/shared && npm run build --workspace=@justlakshmi/api && npm run build --workspace=@justlakshmi/web",
+    "build:shared": "npm run build --workspace=@justlakshmi/shared",
+    "build:api": "npm run build --workspace=@justlakshmi/shared && npm run build --workspace=@justlakshmi/api",
+    "build:web": "npm run build --workspace=@justlakshmi/shared && npm run build --workspace=@justlakshmi/web",
     "start:web": "npm run start --workspace=@justlakshmi/web",
+    "start:api": "npm run start --workspace=@justlakshmi/api",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run build --workspace=@justlakshmi/shared && npm run typecheck --workspaces --if-present",
+    "test": "npm run build --workspace=@justlakshmi/shared && npm run test --workspaces --if-present",
+    "test:api": "npm run build --workspace=@justlakshmi/shared && npm run test --workspace=@justlakshmi/api",
     "icons": "npm run icons --workspace=@justlakshmi/web",
     "check:pwa": "npm run check:pwa --workspace=@justlakshmi/web",
-    "check": "npm run lint && npm run typecheck && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
   }
 }

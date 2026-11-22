@@ -4,6 +4,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  transpilePackages: ["@justlakshmi/shared"],
   // Pin Turbopack root to the monorepo root so hoisted workspace dependencies resolve cleanly.
   turbopack: { root: path.resolve(import.meta.dirname, "../..") },
   async headers() {
