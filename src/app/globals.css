@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Design tokens - Quiet Ledger
+  Black, white and neutral greys only. Ink is the accent: no hues, no gradients.
+  Radius: one value (--radius-ui) plus full circles/pills. Shadow: none.
+  Type: Instrument Serif (display) + DM Sans (text), 1.25 ratio.
+*/
+:root {
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #efefeb;
+  --ink: #0a0a0a;
+  --ink-2: #4a4a46;
+  --ink-3: #6b6b66;
+  --line: #e0e0da;
+  --inverse: #0a0a0a;
+  --on-inverse: #fafaf8;
+  --focus: #0a0a0a;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0a0a0a;
+  --surface: #141413;
+  --surface-2: #1d1d1b;
+  --ink: #fafaf8;
+  --ink-2: #bdbdb7;
+  --ink-3: #94948e;
+  --line: #2a2a27;
+  --inverse: #fafaf8;
+  --on-inverse: #0a0a0a;
+  --focus: #fafaf8;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-inverse: var(--inverse);
+  --color-on-inverse: var(--on-inverse);
+
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  --radius-ui: 14px;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.953rem;
+  --text-3xl: 2.441rem;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* iOS safe-area helpers */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Prevent iOS Safari zoom on focus: inputs must be >= 16px. */
+input,
+textarea,
+select {
+  font-size: 1rem;
+}
+
+@keyframes jl-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.jl-enter {
+  animation: jl-fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes jl-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.jl-skeleton {
+  background: var(--surface-2);
+  border-radius: var(--radius-ui);
+  animation: jl-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
