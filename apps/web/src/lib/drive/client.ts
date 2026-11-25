@@ -84,10 +84,50 @@ async function classifyResponseError(res: Response, fallback: string): Promise<D
   }
   if (res.status === 403) {
     const bodyText = await res.text().catch(() => "");
-    if (/rateLimitExceeded|userRateLimitExceeded|dailyLimitExceeded|quota/i.test(bodyText)) {
-      return new DriveApiError("RETRYABLE", 403, "Google Drive quota/rate limit reached. Local changes remain queued.");
+    let googleMessage = "";
+    let googleReasons: string[] = [];
+
+    try {
+      const payload = JSON.parse(bodyText) as {
+        error?: {
+          message?: string;
+          errors?: Array<{ reason?: string; message?: string }>;
+        };
+      };
+      googleMessage = payload.error?.message ?? "";
+      googleReasons = Array.from(
+        new Set((payload.error?.errors ?? []).map((item) => item.reason).filter((reason): reason is string => Boolean(reason))),
+      );
+    } catch {
+      // Keep the raw response text below when Google returns a non-JSON error.
     }
-    return new DriveApiError("REAUTH_REQUIRED", 403, "Google Drive access was revoked or insufficient. Please reconnect Drive.");
+
+    const diagnostic = [
+      googleReasons.length > 0 ? `reason: ${googleReasons.join(", ")}` : "",
+      googleMessage || bodyText.slice(0, 500),
+    ].filter(Boolean).join(" — ");
+
+    if (/rateLimitExceeded|userRateLimitExceeded|dailyLimitExceeded|quota/i.test(`${bodyText} ${googleReasons.join(" ")}`)) {
+      return new DriveApiError(
+        "RETRYABLE",
+        403,
+        `Google Drive quota/rate limit reached. Local changes remain queued. ${diagnostic}`.trim(),
+      );
+    }
+
+    if (/accessNotConfigured|SERVICE_DISABLED/i.test(`${bodyText} ${googleReasons.join(" ")}`)) {
+      return new DriveApiError(
+        "UNKNOWN",
+        403,
+        `Google Drive API is not enabled for the Google Cloud project associated with this OAuth client. Check the selected project and API state. ${diagnostic}`.trim(),
+      );
+    }
+
+    return new DriveApiError(
+      "REAUTH_REQUIRED",
+      403,
+      `Google Drive returned HTTP 403. ${diagnostic || "The request was denied; the Google response did not include a readable reason."}`,
+    );
   }
   if (res.status === 404) {
     return new DriveApiError("NOT_FOUND", 404, "The Habbits folder or file could not be found in Google Drive.");
