@@ -122,7 +122,7 @@ describe("AI providers, notifications, and user-scoped Drive isolation", () => {
       method: "POST",
       url: "/api/v1/ai/test-provider",
       headers: { authorization: `Bearer ${VALID_TEST_TOKEN}` },
-      payload: { provider: "gemini", apiKey: "AIzaSyTestKey123456" },
+      payload: { provider: "gemini", apiKey: "AIzaSyTestKey123456", model: "gemini-2.5-flash" },
     });
     assert.equal(testRes.statusCode, 200);
     assert.equal(AiTestProviderResponseSchema.parse(testRes.json()).ok, true);
@@ -134,6 +134,7 @@ describe("AI providers, notifications, and user-scoped Drive isolation", () => {
       payload: {
         provider: "groq",
         apiKey: "gsk_test_1234567890",
+        model: "llama-3.3-70b-versatile",
         consentGranted: true,
         includeJournalContext: false,
         message: "How consistent was I?",

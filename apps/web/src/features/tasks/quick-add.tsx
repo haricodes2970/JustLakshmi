@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import type { Category, ISODate, LocalTime, Recurrence, ReminderConfig, TaskMode, Weekday } from "@justlakshmi/shared";
+import { SakugaInput, SakugaToggle, useSakuga } from "@/components/sakuga";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { WEEKDAY_LABELS } from "@/lib/dates";
@@ -19,8 +20,8 @@ export type QuickAddValue = {
   reminder: ReminderConfig;
 };
 
-const fieldClass =
-  "min-h-11 w-full rounded-ui border border-line bg-surface px-3 text-ink placeholder:text-ink-3 focus-visible:outline-2";
+const selectClass =
+  "min-h-11 w-full rounded-ui border border-line bg-surface px-3 text-ink transition-[border-color,box-shadow] duration-150 focus:border-sk-violet focus:shadow-[0_2px_0_var(--sk-lavender)] focus:outline-none";
 
 /**
  * Quick add requires only a task name. Optional fields (time, category, mode/target,
@@ -40,6 +41,7 @@ export function QuickAdd({
   contextLabel?: string;
 }) {
   const uid = useId();
+  const { toast } = useSakuga();
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -118,7 +120,9 @@ export function QuickAdd({
     setTaskMode("checkbox");
     setReminderEnabled(false);
     setOverdueEnabled(false);
-    setMessage({ kind: "ok", text: `Saved ${contextLabel ?? noun} locally.` });
+    const savedText = `Saved ${contextLabel ?? noun} locally.`;
+    setMessage({ kind: "ok", text: savedText });
+    toast(`Added "${trimmed}"`, "success");
   }
 
   return (
@@ -127,7 +131,7 @@ export function QuickAdd({
         <label htmlFor={`${uid}-title`} className="sr-only">
           New {noun} name
         </label>
-        <input
+        <SakugaInput
           id={`${uid}-title`}
           value={title}
           onChange={(e) => {
@@ -139,9 +143,8 @@ export function QuickAdd({
           enterKeyHint="done"
           aria-invalid={message?.kind === "error"}
           aria-describedby={`${uid}-msg`}
-          className={fieldClass}
         />
-        <Button type="submit" size="icon" aria-label={`Add ${noun}`}>
+        <Button type="submit" size="icon" variant="accent" effect="ticks" aria-label={`Add ${noun}`}>
           <Plus aria-hidden className="size-5" />
         </Button>
       </div>
@@ -151,10 +154,10 @@ export function QuickAdd({
         aria-expanded={open}
         aria-controls={`${uid}-more`}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex min-h-8 items-center gap-1 text-sm text-ink-3 hover:text-ink"
+        className="inline-flex min-h-8 items-center gap-1 text-sm text-ink-3 transition-colors hover:text-ink"
       >
         More options
-        <ChevronDown aria-hidden className={cn("size-4 transition-transform", open && "rotate-180")} />
+        <ChevronDown aria-hidden className={cn("size-4 transition-transform duration-150", open && "rotate-180")} />
       </button>
 
       {open ? (
@@ -163,13 +166,13 @@ export function QuickAdd({
             <label htmlFor={`${uid}-time`} className="mb-1 block text-xs text-ink-3">
               Time (optional)
             </label>
-            <input id={`${uid}-time`} type="time" value={time} onChange={(e) => setTime(e.target.value)} className={fieldClass} />
+            <SakugaInput id={`${uid}-time`} type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </div>
           <div>
             <label htmlFor={`${uid}-cat`} className="mb-1 block text-xs text-ink-3">
               Category (optional)
             </label>
-            <select id={`${uid}-cat`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={fieldClass}>
+            <select id={`${uid}-cat`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={selectClass}>
               <option value="">Uncategorized</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -187,7 +190,7 @@ export function QuickAdd({
               id={`${uid}-mode`}
               value={taskMode}
               onChange={(e) => setTaskMode(e.target.value as TaskMode)}
-              className={fieldClass}
+              className={selectClass}
             >
               <option value="checkbox">Checkbox (tap to complete)</option>
               <option value="measurable">Measurable target (e.g. ml, pages)</option>
@@ -201,21 +204,25 @@ export function QuickAdd({
                 <label htmlFor={`${uid}-target`} className="mb-1 block text-xs text-ink-3">
                   Target quantity
                 </label>
-                <input
+                <SakugaInput
                   id={`${uid}-target`}
                   type="number"
                   min={1}
                   step="any"
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
-                  className={fieldClass}
                 />
               </div>
               <div>
                 <label htmlFor={`${uid}-unit`} className="mb-1 block text-xs text-ink-3">
                   Unit
                 </label>
-                <input id={`${uid}-unit`} value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="ml, pages, steps" className={fieldClass} />
+                <SakugaInput
+                  id={`${uid}-unit`}
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  placeholder="ml, pages, steps"
+                />
               </div>
             </>
           ) : null}
@@ -225,20 +232,19 @@ export function QuickAdd({
               <label htmlFor={`${uid}-dur`} className="mb-1 block text-xs text-ink-3">
                 Target duration (minutes)
               </label>
-              <input
+              <SakugaInput
                 id={`${uid}-dur`}
                 type="number"
                 min={1}
                 value={targetMinutes}
                 onChange={(e) => setTargetMinutes(e.target.value)}
-                className={fieldClass}
               />
             </div>
           ) : null}
 
           {mode === "routine" ? (
             <fieldset className="sm:col-span-2">
-              <legend className="mb-1 text-xs text-ink-3">Repeats</legend>
+              <legend className="mb-1.5 text-xs text-ink-3">Repeats</legend>
               <div className="flex flex-wrap gap-2">
                 {(
                   [
@@ -250,8 +256,10 @@ export function QuickAdd({
                   <label
                     key={value}
                     className={cn(
-                      "flex min-h-11 cursor-pointer items-center rounded-ui border px-4 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink",
-                      scheduleKind === value ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface",
+                      "flex min-h-11 cursor-pointer items-center rounded-ui border px-4 text-sm font-medium transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
+                      scheduleKind === value
+                        ? "border-2 border-line-strong bg-inverse text-on-inverse"
+                        : "border-line bg-surface text-ink-2 hover:bg-surface-2",
                     )}
                   >
                     <input
@@ -274,8 +282,10 @@ export function QuickAdd({
                       aria-pressed={days.includes(d)}
                       onClick={() => toggleDay(d)}
                       className={cn(
-                        "min-h-11 min-w-11 rounded-ui border px-2 text-sm font-medium",
-                        days.includes(d) ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2",
+                        "min-h-11 min-w-11 rounded-ui border px-2 text-sm font-medium transition-colors active:scale-95",
+                        days.includes(d)
+                          ? "border-2 border-line-strong bg-sk-violet text-white"
+                          : "border-line bg-surface text-ink-2 hover:bg-surface-2",
                       )}
                     >
                       {WEEKDAY_LABELS[d]}
@@ -288,46 +298,44 @@ export function QuickAdd({
                   <label htmlFor={`${uid}-int`} className="mb-1 block text-xs text-ink-3">
                     Repeat every N days
                   </label>
-                  <input
+                  <SakugaInput
                     id={`${uid}-int`}
                     type="number"
                     min={1}
                     max={365}
                     value={intervalDays}
                     onChange={(e) => setIntervalDays(e.target.value)}
-                    className={fieldClass}
                   />
                 </div>
               ) : null}
             </fieldset>
           ) : null}
 
-          <div className="flex flex-wrap gap-4 sm:col-span-2">
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm text-ink-2">
-              <input
-                type="checkbox"
-                checked={reminderEnabled}
-                onChange={(e) => setReminderEnabled(e.target.checked)}
-                className="size-4 accent-ink"
-              />
-              Enable reminder
-            </label>
+          <div className="flex flex-wrap items-center gap-4 pt-1 sm:col-span-2">
+            <div className="inline-flex min-h-10 items-center gap-2.5 text-sm text-ink-2">
+              <SakugaToggle checked={reminderEnabled} onChange={setReminderEnabled} label="Enable reminder" />
+              <span>Enable reminder</span>
+            </div>
             {reminderEnabled ? (
-              <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm text-ink-2">
-                <input
-                  type="checkbox"
+              <div className="inline-flex min-h-10 items-center gap-2.5 text-sm text-ink-2">
+                <SakugaToggle
                   checked={overdueEnabled}
-                  onChange={(e) => setOverdueEnabled(e.target.checked)}
-                  className="size-4 accent-ink"
+                  onChange={setOverdueEnabled}
+                  label="One overdue reminder (+30m)"
                 />
-                One overdue reminder (+30m)
-              </label>
+                <span>Overdue reminder (+30m)</span>
+              </div>
             ) : null}
           </div>
         </div>
       ) : null}
 
-      <p id={`${uid}-msg`} role="status" aria-live="polite" className={cn("min-h-5 text-sm", message?.kind === "error" ? "text-ink" : "text-ink-3")}>
+      <p
+        id={`${uid}-msg`}
+        role="status"
+        aria-live="polite"
+        className={cn("min-h-5 text-sm", message?.kind === "error" ? "font-medium text-sk-danger" : "text-ink-3")}
+      >
         {message?.text}
       </p>
     </form>

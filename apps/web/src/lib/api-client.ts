@@ -2,6 +2,8 @@ import {
   API_PREFIX,
   AiChatRequestSchema,
   AiChatResponseSchema,
+  AiDiscoverModelsRequestSchema,
+  AiDiscoverModelsResponseSchema,
   AiTestProviderRequestSchema,
   AiTestProviderResponseSchema,
   ApiErrorResponseSchema,
@@ -16,6 +18,8 @@ import {
   UpdateDriveConnectionRequestSchema,
   type AiChatRequest,
   type AiChatResponse,
+  type AiDiscoverModelsRequest,
+  type AiDiscoverModelsResponse,
   type AiTestProviderRequest,
   type AiTestProviderResponse,
   type ApiErrorCode,
@@ -194,6 +198,20 @@ export async function saveDriveConnection(
     signal,
   });
   return res.connection;
+}
+
+export function discoverAiModels(
+  accessToken: string,
+  payload: AiDiscoverModelsRequest,
+  signal?: AbortSignal,
+): Promise<AiDiscoverModelsResponse> {
+  const validatedBody = AiDiscoverModelsRequestSchema.parse(payload);
+  return apiRequest(`${API_PREFIX}/ai/models`, AiDiscoverModelsResponseSchema, {
+    method: "POST",
+    accessToken,
+    body: validatedBody,
+    signal,
+  });
 }
 
 export function testAiProvider(

@@ -23,11 +23,16 @@ import {
   type TaskTemplate,
   type Tombstone,
 } from "@justlakshmi/shared";
+import { closeLocalDb, scopeKeyOf, type WorkspaceScope } from "@/data/local/db";
 import {
   DEFAULT_NOTIFICATION_PREFS,
   buildWorkspaceExport,
+  createEmptySnapshot,
   dateKey,
   deleteAiMemoryLocal,
+  exportLegacyUnscopedJson,
+  importWorkspaceJsonIntoScope,
+  inspectLegacyUnscopedData,
   loadLocalSnapshot,
   makeId,
   putAiMemoryLocal,
@@ -47,7 +52,7 @@ import { isApiConfigured, saveDriveConnection } from "@/lib/api-client";
 import { createHabbitsFolder, verifyHabbitsFolder } from "@/lib/drive/client";
 import { requestDriveAuthorization, revokeDriveAuthorization } from "@/lib/drive/oauth";
 import { pickExistingHabbitsFolder } from "@/lib/drive/picker";
-import { hasActiveDriveToken } from "@/lib/drive/token-memory";
+import { clearDriveAccessToken, hasActiveDriveToken } from "@/lib/drive/token-memory";
 import { useClock } from "@/lib/use-clock";
 
 export type NewTemplateInput = {
@@ -79,6 +84,7 @@ export type JournalPatch = {
 
 type WorkspaceContextValue = {
   ready: boolean;
+  scope: WorkspaceScope;
   today: ISODate;
   timeZone: string;
   categories: readonly Category[];
@@ -95,6 +101,7 @@ type WorkspaceContextValue = {
   syncMessage: string;
   notificationPrefs: NotificationPreferences;
   aiConsent: { granted: boolean; includeJournal: boolean; updatedAt: string };
+  legacyUnscoped: { exists: boolean; recordCount: number };
 
   categoryName: (id?: string) => string;
   occurrencesOn: (date: ISODate) => TaskOccurrence[];
@@ -140,6 +147,8 @@ type WorkspaceContextValue = {
 
   loadStarterRoutine: () => Promise<void>;
   exportJson: () => string;
+  importJson: (rawJson: string) => Promise<number>;
+  exportLegacyJson: () => Promise<string | null>;
 };
 
 const Ctx = createContext<WorkspaceContextValue | null>(null);
@@ -161,7 +170,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const today = clock?.date ?? "1970-01-01";
   const timeZone = useMemo(() => detectTimeZone(), []);
 
-  const [loaded, setLoaded] = useState(false);
+  // Wait for auth restoration before opening a user-scoped IndexedDB database.
+  const authUserId = auth.user?.id ?? null;
+  const scope: WorkspaceScope = useMemo(
+    () => (auth.status === "authenticated" && authUserId ? { kind: "user", userId: authUserId } : { kind: "guest" }),
+    [auth.status, authUserId],
+  );
+  const activeScopeKey = scopeKeyOf(scope);
+
+  const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [occurrences, setOccurrences] = useState<TaskOccurrence[]>([]);
@@ -174,12 +191,20 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [tombstones, setTombstones] = useState<Tombstone[]>([]);
   const [driveConnection, setDriveConnection] = useState<DriveConnectionMetadata | null>(null);
   const [driveManifest, setDriveManifest] = useState<LocalWorkspaceSnapshot["driveManifest"]>(null);
+  const [driveManifestEtag, setDriveManifestEtag] = useState<string | null>(null);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFS);
   const [aiConsent, setAiConsentState] = useState({ granted: false, includeJournal: false, updatedAt: "" });
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [syncMessage, setSyncMessage] = useState("Saved locally on this device.");
+  const [legacyUnscoped, setLegacyUnscoped] = useState<{ exists: boolean; recordCount: number }>({
+    exists: false,
+    recordCount: 0,
+  });
 
+  const prevScopeRef = useRef<WorkspaceScope | null>(null);
+  const generationRef = useRef(0);
   const snapshotRef = useRef<LocalWorkspaceSnapshot | null>(null);
+
   useEffect(() => {
     snapshotRef.current = {
       categories,
@@ -194,6 +219,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       tombstones,
       driveConnection,
       driveManifest,
+      driveManifestEtag,
       notificationPrefs,
       aiConsent,
     };
@@ -210,49 +236,75 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     tombstones,
     driveConnection,
     driveManifest,
+    driveManifestEtag,
     notificationPrefs,
     aiConsent,
   ]);
 
-  const applySnapshot = useCallback((snap: LocalWorkspaceSnapshot | null) => {
-    if (snap) {
-      setCategories(snap.categories);
-      setTemplates(snap.templates);
-      setOccurrences(snap.occurrences);
-      setProgressEvents(snap.progressEvents);
-      setAuditEvents(snap.auditEvents);
-      setJournalEntries(snap.journalEntries);
-      setAiMemories(snap.aiMemories);
-      setOutbox(snap.outbox);
-      setConflicts(snap.conflicts);
-      setTombstones(snap.tombstones);
-      setDriveConnection(snap.driveConnection);
-      setDriveManifest(snap.driveManifest);
-      setNotificationPrefs(snap.notificationPrefs);
-      setAiConsentState(snap.aiConsent);
-      if (snap.conflicts.some((c) => !c.resolvedAt)) setSyncState("conflict");
-      else if (snap.driveConnection?.status === "reauth_required") setSyncState("reauth_required");
-      else if (snap.outbox.length > 0) setSyncState("pending");
-    }
-    setLoaded(true);
+  const applySnapshot = useCallback((snap: LocalWorkspaceSnapshot | null, targetScopeKey: string) => {
+    const resolved = snap ?? createEmptySnapshot();
+    setCategories(resolved.categories);
+    setTemplates(resolved.templates);
+    setOccurrences(resolved.occurrences);
+    setProgressEvents(resolved.progressEvents);
+    setAuditEvents(resolved.auditEvents);
+    setJournalEntries(resolved.journalEntries);
+    setAiMemories(resolved.aiMemories);
+    setOutbox(resolved.outbox);
+    setConflicts(resolved.conflicts);
+    setTombstones(resolved.tombstones);
+    setDriveConnection(resolved.driveConnection);
+    setDriveManifest(resolved.driveManifest);
+    setDriveManifestEtag(resolved.driveManifestEtag);
+    setNotificationPrefs(resolved.notificationPrefs);
+    setAiConsentState(resolved.aiConsent);
+
+    if (resolved.conflicts.some((c) => !c.resolvedAt)) setSyncState("conflict");
+    else if (resolved.driveConnection?.status === "reauth_required") setSyncState("reauth_required");
+    else if (resolved.outbox.length > 0) setSyncState("pending");
+    else if (resolved.driveConnection?.status === "connected") setSyncState("synced");
+    else setSyncState("idle");
+
+    setLoadedScopeKey(targetScopeKey);
   }, []);
 
   const reloadFromDb = useCallback(async () => {
-    const snap = await loadLocalSnapshot().catch(() => null);
-    applySnapshot(snap);
-  }, [applySnapshot]);
+    const gen = ++generationRef.current;
+    const snap = await loadLocalSnapshot(scope).catch(() => null);
+    if (generationRef.current !== gen) return;
+    applySnapshot(snap, activeScopeKey);
+  }, [scope, activeScopeKey, applySnapshot]);
 
+  // Safe account-switch & logout lifecycle:
+  // 1. Wait until auth finishes restoring session.
+  // 2. Close previous user's IndexedDB handle & clear Drive token on scope change.
+  // 3. Load strictly from the new user/guest DB with generation guard against race conditions.
   useEffect(() => {
+    if (auth.status === "loading") return;
+
+    const prevScope = prevScopeRef.current;
+    if (prevScope && scopeKeyOf(prevScope) !== activeScopeKey) {
+      clearDriveAccessToken();
+      void closeLocalDb(prevScope);
+    }
+    prevScopeRef.current = scope;
+
+    const gen = ++generationRef.current;
     let active = true;
-    loadLocalSnapshot()
-      .catch(() => null)
-      .then((snap) => {
-        if (active) applySnapshot(snap);
-      });
+
+    Promise.all([
+      loadLocalSnapshot(scope).catch(() => null),
+      inspectLegacyUnscopedData().catch(() => ({ exists: false, recordCount: 0 })),
+    ]).then(([snap, legacy]) => {
+      if (!active || generationRef.current !== gen) return;
+      applySnapshot(snap, activeScopeKey);
+      setLegacyUnscoped(legacy);
+    });
+
     return () => {
       active = false;
     };
-  }, [applySnapshot]);
+  }, [auth.status, scope, activeScopeKey, applySnapshot]);
 
   const materializeOccurrence = useCallback(
     (template: TaskTemplate, date: ISODate): TaskOccurrence => {
@@ -324,7 +376,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const commitOccurrenceUpdate = useCallback(
     async (next: TaskOccurrence, audit: AuditEvent, progress?: ProgressEvent) => {
-      await putOccurrenceLocal(next, { progress, audit, enqueue: true });
+      await putOccurrenceLocal(scope, next, { progress, audit, enqueue: true });
       setOccurrences((prev) => [...prev.filter((o) => o.id !== next.id), next]);
       setAuditEvents((prev) => [...prev, audit]);
       if (progress) setProgressEvents((prev) => [...prev, progress]);
@@ -347,7 +399,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       ]);
       setSyncState((cur) => (cur === "conflict" || cur === "reauth_required" ? cur : "pending"));
     },
-    [],
+    [scope],
   );
 
   const toggleOccurrence = useCallback(
@@ -422,44 +474,46 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     async (templateId: string, date: ISODate, exactValue: number) => {
       const base = getOrCreateOccurrence(templateId, date);
       if (!base) return;
-      const clamped = Math.max(0, exactValue);
-      await recordProgress(templateId, date, clamped - base.progressValue);
+      await recordProgress(templateId, date, Math.max(0, exactValue) - base.progressValue);
     },
     [getOrCreateOccurrence, recordProgress],
   );
 
-  const addRoutine = useCallback(async (input: NewTemplateInput) => {
-    const now = new Date().toISOString();
-    const tpl: TaskTemplate = {
-      id: makeId(input.recurrence.kind === "once" ? "task" : "rt"),
-      title: input.title.trim(),
-      description: input.description?.trim() || undefined,
-      categoryId: input.categoryId,
-      mode: input.mode ?? "checkbox",
-      time: input.time,
-      recurrence: input.recurrence,
-      targetValue: input.targetValue,
-      unit: input.unit?.trim() || undefined,
-      targetDurationMinutes: input.targetDurationMinutes,
-      reminder: input.reminder ?? { enabled: false, overdueEnabled: false, overdueDelayMinutes: 30 },
-      isArchived: false,
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
-    const audit: AuditEvent = {
-      id: makeId("aud"),
-      entityType: "routineTemplate",
-      entityId: tpl.id,
-      action: "created",
-      after: { title: tpl.title, mode: tpl.mode, recurrence: tpl.recurrence },
-      occurredAt: now,
-    };
-    await putTemplateLocal(tpl, audit, true);
-    setTemplates((prev) => [...prev, tpl]);
-    setAuditEvents((prev) => [...prev, audit]);
-    setSyncState((cur) => (cur === "conflict" || cur === "reauth_required" ? cur : "pending"));
-  }, []);
+  const addRoutine = useCallback(
+    async (input: NewTemplateInput) => {
+      const now = new Date().toISOString();
+      const tpl: TaskTemplate = {
+        id: makeId(input.recurrence.kind === "once" ? "task" : "rt"),
+        title: input.title.trim(),
+        description: input.description?.trim() || undefined,
+        categoryId: input.categoryId,
+        mode: input.mode ?? "checkbox",
+        time: input.time,
+        recurrence: input.recurrence,
+        targetValue: input.targetValue,
+        unit: input.unit?.trim() || undefined,
+        targetDurationMinutes: input.targetDurationMinutes,
+        reminder: input.reminder ?? { enabled: false, overdueEnabled: false, overdueDelayMinutes: 30 },
+        isArchived: false,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const audit: AuditEvent = {
+        id: makeId("aud"),
+        entityType: "routineTemplate",
+        entityId: tpl.id,
+        action: "created",
+        after: { title: tpl.title, mode: tpl.mode, recurrence: tpl.recurrence },
+        occurredAt: now,
+      };
+      await putTemplateLocal(scope, tpl, audit, true);
+      setTemplates((prev) => [...prev, tpl]);
+      setAuditEvents((prev) => [...prev, audit]);
+      setSyncState((cur) => (cur === "conflict" || cur === "reauth_required" ? cur : "pending"));
+    },
+    [scope],
+  );
 
   const addTask = useCallback(
     async (input: Omit<NewTemplateInput, "recurrence">, date: ISODate) => {
@@ -472,14 +526,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     async (
       templateId: string,
       patch: Partial<Pick<TaskTemplate, "title" | "time" | "categoryId" | "recurrence" | "targetValue" | "unit" | "targetDurationMinutes" | "reminder">>,
-      scope: EditScope,
+      editScope: EditScope,
       date: ISODate,
     ) => {
       const existing = templates.find((t) => t.id === templateId);
       if (!existing) return;
       const now = new Date().toISOString();
 
-      if (scope === "this_occurrence") {
+      if (editScope === "this_occurrence") {
         const base = getOrCreateOccurrence(templateId, date);
         if (!base) return;
         const next: TaskOccurrence = {
@@ -507,7 +561,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Future occurrences: update template version; past occurrences stay immutable snapshots.
       const updated: TaskTemplate = {
         ...existing,
         ...patch,
@@ -524,12 +577,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         after: { title: updated.title, recurrence: updated.recurrence, time: updated.time, scope: "future_occurrences" },
         occurredAt: now,
       };
-      await putTemplateLocal(updated, audit, true);
+      await putTemplateLocal(scope, updated, audit, true);
       setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setAuditEvents((prev) => [...prev, audit]);
       setSyncState((cur) => (cur === "conflict" || cur === "reauth_required" ? cur : "pending"));
     },
-    [templates, getOrCreateOccurrence, commitOccurrenceUpdate],
+    [scope, templates, getOrCreateOccurrence, commitOccurrenceUpdate],
   );
 
   const archiveTemplate = useCallback(
@@ -546,11 +599,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         before: { title: existing.title },
         occurredAt: now,
       };
-      await putTemplateLocal(archived, audit, true);
+      await putTemplateLocal(scope, archived, audit, true);
       setTemplates((prev) => prev.map((t) => (t.id === archived.id ? archived : t)));
       setAuditEvents((prev) => [...prev, audit]);
     },
-    [templates],
+    [scope, templates],
   );
 
   const createCategory = useCallback(
@@ -567,10 +620,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         createdAt: now,
         updatedAt: now,
       };
-      await putCategoryLocal(cat, true);
+      await putCategoryLocal(scope, cat, true);
       setCategories((prev) => [...prev, cat]);
     },
-    [categories.length],
+    [scope, categories.length],
   );
 
   const renameCategory = useCallback(
@@ -583,10 +636,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         version: existing.version + 1,
         updatedAt: new Date().toISOString(),
       };
-      await putCategoryLocal(updated, true);
+      await putCategoryLocal(scope, updated, true);
       setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
     },
-    [categories],
+    [scope, categories],
   );
 
   const deleteCategory = useCallback(
@@ -595,20 +648,23 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       if (!existing) return;
       const now = new Date().toISOString();
       const archived: Category = { ...existing, isArchived: true, version: existing.version + 1, updatedAt: now };
-      await putCategoryLocal(archived, true);
+      await putCategoryLocal(scope, archived, true);
       setCategories((prev) => prev.map((c) => (c.id === id ? archived : c)));
 
-      // Reassign active templates cleanly without deleting any tasks or historical records.
       const affected = templates.filter((t) => t.categoryId === id);
       for (const tpl of affected) {
         const next: TaskTemplate = { ...tpl, categoryId: reassignToId || undefined, version: tpl.version + 1, updatedAt: now };
-        await putTemplateLocal(next, undefined, true);
+        await putTemplateLocal(scope, next, undefined, true);
       }
       if (affected.length > 0) {
-        setTemplates((prev) => prev.map((t) => (t.categoryId === id ? { ...t, categoryId: reassignToId || undefined, version: t.version + 1, updatedAt: now } : t)));
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.categoryId === id ? { ...t, categoryId: reassignToId || undefined, version: t.version + 1, updatedAt: now } : t,
+          ),
+        );
       }
     },
-    [categories, templates],
+    [scope, categories, templates],
   );
 
   const getJournal = useCallback(
@@ -636,37 +692,43 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         action: existing ? "updated" : "created",
         occurredAt: now,
       };
-      await putJournalLocal(entry, audit, true);
+      await putJournalLocal(scope, entry, audit, true);
       setJournalEntries((prev) => [...prev.filter((j) => j.date !== date), entry]);
       setAuditEvents((prev) => [...prev, audit]);
       setSyncState((cur) => (cur === "conflict" || cur === "reauth_required" ? cur : "pending"));
     },
-    [journalEntries, timeZone],
+    [scope, journalEntries, timeZone],
   );
 
-  const setAiConsent = useCallback(async (granted: boolean, includeJournal: boolean) => {
-    const next = { granted, includeJournal: granted && includeJournal, updatedAt: new Date().toISOString() };
-    await putMetaLocal("aiConsent", next);
-    setAiConsentState(next);
-  }, []);
+  const setAiConsent = useCallback(
+    async (granted: boolean, includeJournal: boolean) => {
+      const next = { granted, includeJournal: granted && includeJournal, updatedAt: new Date().toISOString() };
+      await putMetaLocal(scope, "aiConsent", next);
+      setAiConsentState(next);
+    },
+    [scope],
+  );
 
-  const addAiMemory = useCallback(async (content: string, category?: string) => {
-    const trimmed = content.trim();
-    if (!trimmed) return;
-    const now = new Date().toISOString();
-    const item: AiMemoryItem = {
-      id: makeId("mem"),
-      content: trimmed,
-      category: category?.trim() || undefined,
-      pinned: false,
-      provenance: "user",
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await putAiMemoryLocal(item, true);
-    setAiMemories((prev) => [item, ...prev]);
-  }, []);
+  const addAiMemory = useCallback(
+    async (content: string, category?: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      const now = new Date().toISOString();
+      const item: AiMemoryItem = {
+        id: makeId("mem"),
+        content: trimmed,
+        category: category?.trim() || undefined,
+        pinned: false,
+        provenance: "user",
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await putAiMemoryLocal(scope, item, true);
+      setAiMemories((prev) => [item, ...prev]);
+    },
+    [scope],
+  );
 
   const updateAiMemory = useCallback(
     async (id: string, content: string) => {
@@ -678,10 +740,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         version: existing.version + 1,
         updatedAt: new Date().toISOString(),
       };
-      await putAiMemoryLocal(updated, true);
+      await putAiMemoryLocal(scope, updated, true);
       setAiMemories((prev) => prev.map((m) => (m.id === id ? updated : m)));
     },
-    [aiMemories],
+    [scope, aiMemories],
   );
 
   const togglePinAiMemory = useCallback(
@@ -694,42 +756,42 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         version: existing.version + 1,
         updatedAt: new Date().toISOString(),
       };
-      await putAiMemoryLocal(updated, true);
+      await putAiMemoryLocal(scope, updated, true);
       setAiMemories((prev) => prev.map((m) => (m.id === id ? updated : m)));
     },
-    [aiMemories],
+    [scope, aiMemories],
   );
 
   const deleteAiMemory = useCallback(
     async (id: string) => {
       const existing = aiMemories.find((m) => m.id === id);
       if (!existing) return;
-      const tomb = await deleteAiMemoryLocal(existing);
+      const tomb = await deleteAiMemoryLocal(scope, existing);
       setAiMemories((prev) => prev.filter((m) => m.id !== id));
       setTombstones((prev) => [...prev, tomb]);
     },
-    [aiMemories],
+    [scope, aiMemories],
   );
 
   const clearAllAiMemories = useCallback(async () => {
     for (const mem of aiMemories) {
-      await deleteAiMemoryLocal(mem);
+      await deleteAiMemoryLocal(scope, mem);
     }
     setAiMemories([]);
-  }, [aiMemories]);
+  }, [scope, aiMemories]);
 
   const updateNotificationPrefs = useCallback(
     async (patch: Partial<NotificationPreferences>) => {
       const next: NotificationPreferences = { ...notificationPrefs, ...patch };
-      await putMetaLocal("notificationPrefs", next);
+      await putMetaLocal(scope, "notificationPrefs", next);
       setNotificationPrefs(next);
     },
-    [notificationPrefs],
+    [scope, notificationPrefs],
   );
 
   const persistDriveConnectionMetadata = useCallback(
     async (meta: DriveConnectionMetadata) => {
-      await putMetaLocal("driveConnection", meta);
+      await putMetaLocal(scope, "driveConnection", meta);
       setDriveConnection(meta);
       if (auth.accessToken && isApiConfigured()) {
         await saveDriveConnection(auth.accessToken, {
@@ -744,27 +806,28 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         });
       }
     },
-    [auth.accessToken],
+    [scope, auth.accessToken],
   );
 
   const syncNow = useCallback(async () => {
     const snap = snapshotRef.current;
     if (!snap) return;
     setSyncState("syncing");
-    const result = await runDriveSync(snap);
+    const result = await runDriveSync(scope, snap);
     setSyncState(result.state);
     setSyncMessage(result.message);
     if (result.manifest) setDriveManifest(result.manifest);
     await reloadFromDb();
-  }, [reloadFromDb]);
+  }, [scope, reloadFromDb]);
 
   const connectCreateDriveFolder = useCallback(async () => {
     const token = await requestDriveAuthorization({ promptConsent: true });
     const verified = await createHabbitsFolder(token);
     const now = new Date().toISOString();
-    await putMetaLocal("driveManifest", verified.manifest);
+    await putMetaLocal(scope, "driveManifest", verified.manifest);
+    if (verified.manifestEtag) await putMetaLocal(scope, "driveManifestEtag", verified.manifestEtag);
     setDriveManifest(verified.manifest);
-    await persistDriveConnectionMetadata({
+    const meta: DriveConnectionMetadata = {
       status: "connected",
       folderId: verified.folderId,
       folderName: DRIVE_ROOT_FOLDER_NAME,
@@ -773,10 +836,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       verifiedAt: verified.verifiedAt,
       lastSyncedAt: null,
       updatedAt: now,
-    });
-    setSyncState("synced");
-    setSyncMessage('Connected to new Google Drive folder "Habbits".');
-  }, [persistDriveConnectionMetadata]);
+    };
+    await persistDriveConnectionMetadata(meta);
+    const snap = snapshotRef.current ? { ...snapshotRef.current, driveConnection: meta, driveManifest: verified.manifest } : null;
+    if (snap) {
+      const res = await runDriveSync(scope, snap);
+      setSyncState(res.state);
+      setSyncMessage(res.message);
+      await reloadFromDb();
+    }
+  }, [scope, persistDriveConnectionMetadata, reloadFromDb]);
 
   const connectSelectDriveFolder = useCallback(async () => {
     const token = await requestDriveAuthorization({ promptConsent: true });
@@ -784,9 +853,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     if (!picked) return;
     const verified = await verifyHabbitsFolder(token, picked.folderId);
     const now = new Date().toISOString();
-    await putMetaLocal("driveManifest", verified.manifest);
+    await putMetaLocal(scope, "driveManifest", verified.manifest);
+    if (verified.manifestEtag) await putMetaLocal(scope, "driveManifestEtag", verified.manifestEtag);
     setDriveManifest(verified.manifest);
-    await persistDriveConnectionMetadata({
+    const meta: DriveConnectionMetadata = {
       status: "connected",
       folderId: verified.folderId,
       folderName: DRIVE_ROOT_FOLDER_NAME,
@@ -795,10 +865,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       verifiedAt: verified.verifiedAt,
       lastSyncedAt: null,
       updatedAt: now,
-    });
-    setSyncState("synced");
-    setSyncMessage('Verified and connected existing Google Drive folder "Habbits".');
-  }, [persistDriveConnectionMetadata]);
+    };
+    await persistDriveConnectionMetadata(meta);
+
+    // Immediately hydrate & merge existing remote Drive records into IndexedDB before any upload.
+    const snap = snapshotRef.current ? { ...snapshotRef.current, driveConnection: meta, driveManifest: verified.manifest } : null;
+    if (snap) {
+      const res = await runDriveSync(scope, snap);
+      setSyncState(res.state);
+      setSyncMessage(res.message);
+      await reloadFromDb();
+    }
+  }, [scope, persistDriveConnectionMetadata, reloadFromDb]);
 
   const reauthorizeDrive = useCallback(async () => {
     await requestDriveAuthorization();
@@ -834,16 +912,38 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       const target = conflicts.find((c) => c.id === conflictId);
       if (!target) return;
       const now = new Date().toISOString();
+
+      if (strategy === "keep_remote" && target.remoteSnapshot) {
+        if (target.entityType === "journalEntry") {
+          await putJournalLocal(scope, target.remoteSnapshot as JournalEntry, undefined, false);
+        } else if (target.entityType === "routineTemplate") {
+          await putTemplateLocal(scope, target.remoteSnapshot as TaskTemplate, undefined, false);
+        } else if (target.entityType === "taskOccurrence") {
+          await putOccurrenceLocal(scope, target.remoteSnapshot as TaskOccurrence, { enqueue: false });
+        } else if (target.entityType === "category") {
+          await putCategoryLocal(scope, target.remoteSnapshot as Category, false);
+        } else if (target.entityType === "aiMemory") {
+          await putAiMemoryLocal(scope, target.remoteSnapshot as AiMemoryItem, false);
+        }
+      } else if (strategy === "keep_local" && target.localSnapshot) {
+        const bumpedVersion = Math.max(target.localVersion, target.remoteVersion) + 1;
+        const bumped = { ...(target.localSnapshot as Record<string, unknown>), version: bumpedVersion, updatedAt: now };
+        if (target.entityType === "journalEntry") await putJournalLocal(scope, bumped as JournalEntry, undefined, true);
+        else if (target.entityType === "routineTemplate") await putTemplateLocal(scope, bumped as TaskTemplate, undefined, true);
+        else if (target.entityType === "taskOccurrence") await putOccurrenceLocal(scope, bumped as TaskOccurrence, { enqueue: true });
+        else if (target.entityType === "category") await putCategoryLocal(scope, bumped as Category, true);
+        else if (target.entityType === "aiMemory") await putAiMemoryLocal(scope, bumped as AiMemoryItem, true);
+      }
+
       const resolved: SyncConflictRecord = { ...target, resolvedAt: now, resolution: strategy };
-      await putConflictLocal(resolved);
-      setConflicts((prev) => prev.map((c) => (c.id === conflictId ? resolved : c)));
+      await putConflictLocal(scope, resolved);
+      await reloadFromDb();
       setSyncState("pending");
       setSyncMessage(`Conflict resolved (${strategy}). Sync when ready.`);
     },
-    [conflicts],
+    [scope, conflicts, reloadFromDb],
   );
 
-  // Explicit opt-in starter routine (never auto-loaded as fake history).
   const loadStarterRoutine = useCallback(async () => {
     const now = new Date().toISOString();
     const starterCats: Category[] = [
@@ -852,7 +952,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       { id: "cat_focus", name: "Focus", sortOrder: 2, isArchived: false, version: 1, createdAt: now, updatedAt: now },
       { id: "cat_evening", name: "Evening", sortOrder: 3, isArchived: false, version: 1, createdAt: now, updatedAt: now },
     ];
-    for (const c of starterCats) await putCategoryLocal(c, true);
+    for (const c of starterCats) await putCategoryLocal(scope, c, true);
     const starterTemplates: TaskTemplate[] = [
       {
         id: "rt_water",
@@ -910,9 +1010,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         updatedAt: now,
       },
     ];
-    for (const t of starterTemplates) await putTemplateLocal(t, undefined, true);
+    for (const t of starterTemplates) await putTemplateLocal(scope, t, undefined, true);
     await reloadFromDb();
-  }, [today, reloadFromDb]);
+  }, [scope, today, reloadFromDb]);
 
   const exportJson = useCallback(() => {
     const snap = snapshotRef.current;
@@ -920,11 +1020,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     return JSON.stringify(buildWorkspaceExport(snap, timeZone), null, 2);
   }, [timeZone]);
 
-  // Resume sync automatically on reconnect or app foreground when Drive token is active.
+  const importJson = useCallback(
+    async (rawJson: string) => {
+      const count = await importWorkspaceJsonIntoScope(scope, rawJson);
+      await reloadFromDb();
+      return count;
+    },
+    [scope, reloadFromDb],
+  );
+
+  const exportLegacyJson = useCallback(() => exportLegacyUnscopedJson(timeZone), [timeZone]);
+
   useEffect(() => {
     const onOnlineOrVisible = () => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-      if (navigator.onLine && hasActiveDriveToken() && (snapshotRef.current?.outbox.length ?? 0) > 0) {
+      if (navigator.onLine && hasActiveDriveToken() && snapshotRef.current?.driveConnection?.status === "connected") {
         void syncNow();
       }
     };
@@ -938,10 +1048,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const activeCategories = useMemo(() => categories.filter((c) => !c.isArchived), [categories]);
   const unresolvedConflicts = useMemo(() => conflicts.filter((c) => !c.resolvedAt), [conflicts]);
+  const ready = auth.status !== "loading" && loadedScopeKey === activeScopeKey && clock !== null;
 
   const value = useMemo<WorkspaceContextValue>(
     () => ({
-      ready: loaded && clock !== null,
+      ready,
+      scope,
       today,
       timeZone,
       categories: activeCategories,
@@ -958,6 +1070,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       syncMessage,
       notificationPrefs,
       aiConsent,
+      legacyUnscoped,
       categoryName: (id) => categories.find((c) => c.id === id)?.name ?? "Uncategorized",
       occurrencesOn,
       completionOn,
@@ -990,10 +1103,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       resolveConflict,
       loadStarterRoutine,
       exportJson,
+      importJson,
+      exportLegacyJson,
     }),
     [
-      loaded,
-      clock,
+      ready,
+      scope,
       today,
       timeZone,
       activeCategories,
@@ -1010,6 +1125,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       syncMessage,
       notificationPrefs,
       aiConsent,
+      legacyUnscoped,
       occurrencesOn,
       completionOn,
       isDone,
@@ -1040,6 +1156,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       resolveConflict,
       loadStarterRoutine,
       exportJson,
+      importJson,
+      exportLegacyJson,
     ],
   );
 
@@ -1052,5 +1170,4 @@ export function useWorkspace(): WorkspaceContextValue {
   return ctx;
 }
 
-// Re-export occursOn for convenience in feature views.
 export { occursOn };

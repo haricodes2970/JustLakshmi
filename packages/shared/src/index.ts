@@ -95,19 +95,32 @@ export {
 } from "./domain.js";
 
 export {
-  AI_DEFAULT_MODELS,
   AiChatRequestSchema,
   AiChatResponseSchema,
   AiContextRecordSchema,
+  AiDiscoverModelsRequestSchema,
+  AiDiscoverModelsResponseSchema,
+  AiModelSchema,
+  AiProviderErrorCodeSchema,
   AiProviderIdSchema,
   AiTestProviderRequestSchema,
   AiTestProviderResponseSchema,
+  ModelAvailabilitySchema,
+  ModelCapabilitySchema,
+  ModelPricingTierSchema,
   type AiChatRequest,
   type AiChatResponse,
   type AiContextRecord,
+  type AiDiscoverModelsRequest,
+  type AiDiscoverModelsResponse,
+  type AiModel,
+  type AiProviderErrorCode,
   type AiProviderId,
   type AiTestProviderRequest,
   type AiTestProviderResponse,
+  type ModelAvailability,
+  type ModelCapability,
+  type ModelPricingTier,
 } from "./ai.js";
 
 export {

@@ -87,18 +87,23 @@ export function CalendarView() {
                     aria-label={`${formatLong(date)}: ${c.completed} completed, ${pending} pending`}
                     onClick={() => setPicked(date)}
                     className={cn(
-                      "flex min-h-14 flex-col items-center justify-center gap-1.5 rounded-ui border text-sm transition-colors sm:min-h-16",
-                      isSelected ? "border-inverse bg-inverse text-on-inverse" : "border-transparent hover:bg-surface-2",
-                      isToday && !isSelected && "border-ink",
+                      "flex min-h-14 flex-col items-center justify-center gap-1.5 rounded-ui border text-sm transition-[background-color,border-color,transform] duration-150 active:scale-95 sm:min-h-16",
+                      isSelected
+                        ? "border-2 border-line-strong bg-inverse text-on-inverse sk-ink-shadow"
+                        : "border-transparent hover:border-sk-violet/50 hover:bg-surface-2",
+                      isToday && !isSelected && "border-2 border-sk-violet bg-sk-violet-soft/60",
                     )}
                   >
                     <span className="font-medium tabular-nums">{dayOfMonth(date)}</span>
                     <span aria-hidden className="flex h-2 items-center gap-0.5">
                       {Array.from({ length: Math.min(c.completed, 3) }, (_, k) => (
-                        <span key={`d${k}`} className="size-1.5 rounded-full bg-current" />
+                        <span
+                          key={`d${k}`}
+                          className={cn("size-1.5 rounded-full", isSelected ? "bg-sk-pink" : "bg-sk-violet")}
+                        />
                       ))}
                       {Array.from({ length: Math.min(pending, 3) }, (_, k) => (
-                        <span key={`p${k}`} className="size-1.5 rounded-full border border-current opacity-70" />
+                        <span key={`p${k}`} className="size-1.5 rounded-full border border-current opacity-65" />
                       ))}
                     </span>
                   </button>

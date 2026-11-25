@@ -91,16 +91,16 @@ export function HomeView() {
         </div>
         <Link
           href="/settings#s-drive"
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs text-ink-2 hover:bg-surface-2"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-xs font-medium text-ink-2 sk-card-shadow transition-colors hover:border-sk-violet/60 hover:bg-surface-2"
         >
           {ws.driveConnection?.status === "connected" ? (
             ws.syncState === "syncing" ? (
-              <RefreshCw aria-hidden className="size-3.5 animate-spin" />
+              <RefreshCw aria-hidden className="size-3.5 animate-spin text-sk-violet" />
             ) : (
-              <Cloud aria-hidden className="size-3.5" />
+              <Cloud aria-hidden className="size-3.5 text-sk-success" />
             )
           ) : (
-            <CloudOff aria-hidden className="size-3.5" />
+            <CloudOff aria-hidden className="size-3.5 text-ink-3" />
           )}
           {syncLabel}
         </Link>
@@ -108,16 +108,20 @@ export function HomeView() {
 
       <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
         <div className="min-w-0 space-y-8">
-          <Card className="flex items-center gap-5 p-5">
-            <ProgressRing percent={pct} label={isToday ? "Today's completion" : "Day completion"} />
+          <Card className="flex items-center gap-5 border-line bg-surface p-5">
+            <ProgressRing
+              percent={pct}
+              celebrateOnFull={dayItems.length > 0}
+              label={isToday ? "Today's completion" : "Day completion"}
+            />
             <div className="min-w-0 flex-1">
-              <h2 className="mb-1 font-medium">{isToday ? "Today's progress" : "Progress"}</h2>
+              <h2 className="mb-1 font-medium text-ink">{isToday ? "Today's progress" : "Progress"}</h2>
               <p className="text-sm text-ink-3">
                 <span className="font-semibold text-ink tabular-nums">{done}</span> completed
                 <span aria-hidden> · </span>
                 <span className="font-semibold text-ink tabular-nums">{pending}</span> pending
               </p>
-              <p className="mt-1 text-sm text-ink-3">
+              <p className="mt-1.5 text-sm text-ink-2">
                 {dayItems.length === 0 ? "Nothing scheduled yet." : pending === 0 ? "All done. Well paced." : "One calm step at a time."}
               </p>
             </div>
@@ -154,8 +158,10 @@ export function HomeView() {
                       aria-pressed={category === c.id}
                       onClick={() => setCategory(c.id)}
                       className={cn(
-                        "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm transition-colors",
-                        category === c.id ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2 hover:bg-surface-2",
+                        "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors active:scale-95",
+                        category === c.id
+                          ? "border-2 border-line-strong bg-inverse text-on-inverse"
+                          : "border-line bg-surface text-ink-2 hover:border-sk-violet/60 hover:bg-surface-2",
                       )}
                     >
                       {c.name}
@@ -242,16 +248,18 @@ export function HomeView() {
             <Card className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">{todayJournal ? "Reflection saved" : "Capture today's reflection"}</p>
+                  <p className="text-sm font-medium text-ink">{todayJournal ? "Reflection saved" : "Capture today's reflection"}</p>
                   <p className="text-xs text-ink-3">
                     {todayJournal?.mood ? `Mood: ${todayJournal.mood}` : "Mood, energy, stress, and guided prompts."}
                   </p>
                 </div>
-                <BookOpen aria-hidden className="size-5 shrink-0 text-ink-3" />
+                <span className="grid size-9 shrink-0 place-items-center rounded-ui bg-sk-violet-soft text-sk-violet">
+                  <BookOpen aria-hidden className="size-4" />
+                </span>
               </div>
               <Link
                 href={`/journal?date=${selected}`}
-                className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-ui border border-line bg-surface-2 px-4 text-sm font-medium text-ink hover:opacity-85"
+                className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-ui border border-line-strong/60 bg-sk-violet-soft px-4 text-sm font-medium text-ink transition-colors hover:bg-sk-lavender/70"
               >
                 {todayJournal ? "Open journal entry" : "Write reflection"}
               </Link>
@@ -260,9 +268,9 @@ export function HomeView() {
 
           <section aria-labelledby="quote-heading">
             <SectionHeading id="quote-heading">Daily note</SectionHeading>
-            <Card className="p-5">
-              <Quote aria-hidden className="mb-3 size-5 text-ink-3" />
-              <p className="font-display text-xl leading-snug">{quote?.text}</p>
+            <Card className="border-l-4 border-l-sk-violet p-5">
+              <Quote aria-hidden className="mb-3 size-5 text-sk-violet" />
+              <p className="font-display text-xl leading-snug text-ink">{quote?.text}</p>
             </Card>
           </section>
 

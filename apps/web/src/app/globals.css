@@ -3,36 +3,64 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  Design tokens - Quiet Ledger
-  Black, white and neutral greys only. Ink is the accent: no hues, no gradients.
-  Radius: one value (--radius-ui) plus full circles/pills. Shadow: none.
+  Design tokens - JustLakshmi Sakuga Paper & Ink
+  Inspired by Sakuga VFX (MIT): calm paper surfaces, deep anime ink, lavender & violet
+  accents, pink highlights for micro-accents, flat two-tone shapes, restrained shadows.
   Type: Instrument Serif (display) + DM Sans (text), 1.25 ratio.
 */
 :root {
-  --bg: #f6f6f3;
+  --bg: #faf9f6;
   --surface: #ffffff;
-  --surface-2: #efefeb;
-  --ink: #0a0a0a;
-  --ink-2: #4a4a46;
-  --ink-3: #6b6b66;
-  --line: #e0e0da;
-  --inverse: #0a0a0a;
-  --on-inverse: #fafaf8;
-  --focus: #0a0a0a;
+  --surface-2: #f3effa;
+  --ink: #24212d;
+  --ink-2: #4e485e;
+  --ink-3: #6c657e;
+  --line: #e4dfee;
+  --line-strong: #24212d;
+  --inverse: #24212d;
+  --on-inverse: #faf9f6;
+  --focus: #7462d8;
+
+  /* Sakuga palette */
+  --sk-lavender: #dad1ff;
+  --sk-violet: #7462d8;
+  --sk-violet-soft: #efeaff;
+  --sk-pink: #f2a5c4;
+  --sk-pink-deep: #c95d8c;
+  --sk-shadow: #e8e3f2;
+  --sk-success: #2a7f62;
+  --sk-success-soft: #e7f5ef;
+  --sk-danger: #c14253;
+  --sk-danger-soft: #fcecef;
+
   color-scheme: light;
 }
 
 .dark {
-  --bg: #0a0a0a;
-  --surface: #141413;
-  --surface-2: #1d1d1b;
-  --ink: #fafaf8;
-  --ink-2: #bdbdb7;
-  --ink-3: #94948e;
-  --line: #2a2a27;
-  --inverse: #fafaf8;
-  --on-inverse: #0a0a0a;
-  --focus: #fafaf8;
+  --bg: #14121b;
+  --surface: #1c1926;
+  --surface-2: #262234;
+  --ink: #f7f5fc;
+  --ink-2: #cbc5dc;
+  --ink-3: #9b93b3;
+  --line: #322d42;
+  --line-strong: #dad1ff;
+  --inverse: #dad1ff;
+  --on-inverse: #14121b;
+  --focus: #dad1ff;
+
+  /* Sakuga palette (deliberate dark mode) */
+  --sk-lavender: #b8a9f5;
+  --sk-violet: #9b8aef;
+  --sk-violet-soft: #2a2442;
+  --sk-pink: #f4a9c7;
+  --sk-pink-deep: #f4a9c7;
+  --sk-shadow: #0c0a11;
+  --sk-success: #5bc49b;
+  --sk-success-soft: #1a3028;
+  --sk-danger: #f07b89;
+  --sk-danger-soft: #361d24;
+
   color-scheme: dark;
 }
 
@@ -44,8 +72,20 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-inverse: var(--inverse);
   --color-on-inverse: var(--on-inverse);
+
+  --color-sk-lavender: var(--sk-lavender);
+  --color-sk-violet: var(--sk-violet);
+  --color-sk-violet-soft: var(--sk-violet-soft);
+  --color-sk-pink: var(--sk-pink);
+  --color-sk-pink-deep: var(--sk-pink-deep);
+  --color-sk-shadow: var(--sk-shadow);
+  --color-sk-success: var(--sk-success);
+  --color-sk-success-soft: var(--sk-success-soft);
+  --color-sk-danger: var(--sk-danger);
+  --color-sk-danger-soft: var(--sk-danger-soft);
 
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
@@ -99,6 +139,47 @@ input,
 textarea,
 select {
   font-size: 1rem;
+}
+
+/* Flat two-tone Sakuga surface shadow (crisp, zero blur) */
+.sk-card-shadow {
+  box-shadow: 0 2px 0 var(--sk-shadow);
+}
+
+.sk-ink-shadow {
+  box-shadow: 0 2px 0 var(--line-strong);
+}
+
+/* Checkmark stroke draw animation */
+@keyframes sk-check-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.sk-check-path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: sk-check-draw 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Subtle typing indicator bounce */
+@keyframes sk-dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-4px) scale(1.15);
+  }
+}
+
+.sk-typing-dot {
+  animation: sk-dot-bounce 900ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
 }
 
 @keyframes jl-fade-up {

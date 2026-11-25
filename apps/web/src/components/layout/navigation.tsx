@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, SETTINGS_HREF, type NavItem } from "@/config/product";
+import { NAV_ITEMS, PRODUCT, SETTINGS_HREF, type NavItem } from "@/config/product";
 import { cn } from "@/lib/cn";
 import { Settings } from "lucide-react";
-import { PRODUCT } from "@/config/product";
 import { Logo } from "./logo";
 
 function isActive(pathname: string, href: string) {
@@ -26,8 +25,10 @@ function NavLink({ item, active, variant }: { item: NavItem; active: boolean; va
       >
         <span
           className={cn(
-            "grid h-7 w-12 place-items-center rounded-full transition-colors",
-            active ? "bg-surface-2" : "bg-transparent",
+            "grid h-7 w-12 place-items-center rounded-full border transition-[background-color,border-color,transform] duration-150 active:scale-95",
+            active
+              ? "border-line-strong bg-sk-lavender/65 text-ink dark:bg-sk-violet-soft dark:text-sk-lavender"
+              : "border-transparent bg-transparent",
           )}
         >
           <Icon aria-hidden className="size-5" strokeWidth={active ? 2.25 : 1.75} />
@@ -41,8 +42,10 @@ function NavLink({ item, active, variant }: { item: NavItem; active: boolean; va
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-11 items-center gap-3 rounded-ui px-3 text-sm font-medium transition-colors",
-        active ? "bg-surface-2 text-ink" : "text-ink-3 hover:bg-surface-2 hover:text-ink",
+        "flex min-h-11 items-center gap-3 rounded-ui border px-3 text-sm font-medium transition-[background-color,border-color,color] duration-150",
+        active
+          ? "border-line-strong bg-sk-lavender/55 text-ink sk-card-shadow dark:bg-sk-violet-soft dark:text-sk-lavender"
+          : "border-transparent text-ink-3 hover:bg-surface-2 hover:text-ink",
       )}
     >
       <Icon aria-hidden className="size-5" strokeWidth={active ? 2.25 : 1.75} />
@@ -74,18 +77,20 @@ export function Sidebar() {
       <Link href="/" className="mb-8 mt-2 px-2" aria-label={`${PRODUCT.displayName} home`}>
         <Logo />
       </Link>
-      <nav aria-label="Primary" className="flex flex-1 flex-col gap-1">
+      <nav aria-label="Primary" className="flex flex-1 flex-col gap-1.5">
         {NAV_ITEMS.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(pathname, item.href)} variant="side" />
         ))}
       </nav>
-      <div className="space-y-3">
+      <div className="space-y-3 border-t border-line pt-4">
         <Link
           href={SETTINGS_HREF}
           aria-current={isActive(pathname, SETTINGS_HREF) ? "page" : undefined}
           className={cn(
-            "flex min-h-11 items-center gap-3 rounded-ui px-3 text-sm font-medium transition-colors",
-            isActive(pathname, SETTINGS_HREF) ? "bg-surface-2 text-ink" : "text-ink-3 hover:bg-surface-2 hover:text-ink",
+            "flex min-h-11 items-center gap-3 rounded-ui border px-3 text-sm font-medium transition-colors",
+            isActive(pathname, SETTINGS_HREF)
+              ? "border-line-strong bg-sk-lavender/55 text-ink sk-card-shadow dark:bg-sk-violet-soft dark:text-sk-lavender"
+              : "border-transparent text-ink-3 hover:bg-surface-2 hover:text-ink",
           )}
         >
           <Settings aria-hidden className="size-5" strokeWidth={1.75} />
