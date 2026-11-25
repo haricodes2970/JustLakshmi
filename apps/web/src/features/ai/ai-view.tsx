@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { AiModel, AiProviderId } from "@justlakshmi/shared";
+import { SakugaInput, SakugaToggle, useSakuga } from "@/components/sakuga";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -81,6 +82,7 @@ function AiViewInner() {
   const uid = useId();
   const auth = useAuth();
   const ws = useWorkspace();
+  const { toast } = useSakuga();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Up to 2 session-memory BYOK provider slots.
@@ -177,6 +179,7 @@ function AiViewInner() {
       setApiKeyInput("");
       setSearchQuery("");
       setShowUnknown(false);
+      toast(`Loaded ${res.models.length} ${provider} models`, "success");
     } catch (err) {
       setDiscoverError(err instanceof ApiClientError ? err.message : "Failed to verify key or load models.");
     } finally {
@@ -224,6 +227,7 @@ function AiViewInner() {
             : s,
         ),
       );
+      toast(res.ok ? `Activated ${model.name}` : res.message, res.ok ? "success" : "danger");
     } catch (err) {
       const message = err instanceof ApiClientError ? err.message : "Connection test failed.";
       setSlots((prev) =>
@@ -306,7 +310,9 @@ function AiViewInner() {
         key={model.id}
         className={cn(
           "rounded-ui border p-3 text-xs transition-colors",
-          isActive ? "border-inverse bg-surface-2" : "border-line bg-surface",
+          isActive
+            ? "border-2 border-line-strong bg-sk-violet-soft/60 sk-card-shadow"
+            : "border-line bg-surface hover:border-sk-violet/50",
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -316,10 +322,12 @@ function AiViewInner() {
           </div>
           <span
             className={cn(
-              "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase",
+              "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase",
               model.pricingTier === "free"
-                ? "border-inverse bg-inverse text-on-inverse"
-                : "border-line text-ink-2",
+                ? "border-sk-success/40 bg-sk-success-soft text-sk-success"
+                : model.pricingTier === "paid"
+                  ? "border-sk-violet/40 bg-sk-violet-soft text-sk-violet"
+                  : "border-line bg-surface-2 text-ink-3",
             )}
           >
             {model.pricingTier}
@@ -377,18 +385,21 @@ function AiViewInner() {
       <div className="grid gap-8 lg:grid-cols-[1fr_24rem]">
         <div className="flex min-h-[28rem] flex-col gap-5">
           <div className="flex gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-inverse text-on-inverse">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full border-2 border-line-strong bg-sk-violet text-white sk-card-shadow">
               <Sparkles aria-hidden className="size-4" />
             </span>
-            <div className="max-w-[88%] rounded-ui border border-line bg-surface px-4 py-3">
-              <p className="text-[0.9375rem] leading-relaxed">
+            <div className="max-w-[88%] rounded-ui border border-line bg-surface px-4 py-3 sk-card-shadow">
+              <p className="text-[0.9375rem] leading-relaxed text-ink">
                 Hello, I am Lakshmi. With your explicit consent and a verified BYOK model, I answer questions grounded strictly in
                 your authorized records. I am read-only and will never modify your routines or tasks.
               </p>
               {activeSlot && activeModel ? (
-                <p className="mt-2 text-xs text-ink-3">
-                  Active model: <strong className="text-ink-2">{activeSlot.provider}</strong> ·{" "}
-                  <span className="font-mono">{activeModel.id}</span> ({activeModel.pricingTier})
+                <p className="mt-2 inline-flex flex-wrap items-center gap-1.5 rounded-full bg-sk-violet-soft px-2.5 py-0.5 text-xs text-ink-2">
+                  <span>Active:</span>
+                  <strong className="capitalize text-ink">{activeSlot.provider}</strong>
+                  <span>·</span>
+                  <span className="font-mono text-sk-violet">{activeModel.id}</span>
+                  <span>({activeModel.pricingTier})</span>
                 </p>
               ) : null}
             </div>
@@ -409,14 +420,25 @@ function AiViewInner() {
                   <div
                     className={cn(
                       "max-w-[85%] rounded-ui border px-4 py-3 text-sm leading-relaxed",
-                      m.role === "user" ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink",
+                      m.role === "user"
+                        ? "border-2 border-line-strong bg-inverse text-on-inverse sk-ink-shadow"
+                        : "border-line bg-surface text-ink sk-card-shadow",
                     )}
                   >
                     <p className="whitespace-pre-wrap">{m.text}</p>
-                    {m.meta ? <p className="mt-2 text-xs text-ink-3">{m.meta}</p> : null}
+                    {m.meta ? <p className="mt-2 text-xs opacity-70">{m.meta}</p> : null}
                   </div>
                 </li>
               ))}
+              {sending ? (
+                <li className="flex justify-start" aria-label="Lakshmi AI is thinking">
+                  <div className="inline-flex items-center gap-1.5 rounded-ui border border-line bg-surface px-4 py-3 sk-card-shadow">
+                    <span className="sk-typing-dot size-2 rounded-full bg-sk-violet" style={{ animationDelay: "0ms" }} />
+                    <span className="sk-typing-dot size-2 rounded-full bg-sk-pink" style={{ animationDelay: "150ms" }} />
+                    <span className="sk-typing-dot size-2 rounded-full bg-sk-violet" style={{ animationDelay: "300ms" }} />
+                  </div>
+                </li>
+              ) : null}
             </ul>
           )}
 
@@ -549,18 +571,18 @@ function AiViewInner() {
                     <label htmlFor={`${uid}-apikey`} className="mb-1 block text-xs font-medium text-ink-2">
                       3. Provider API key
                     </label>
-                    <input
+                    <SakugaInput
                       id={`${uid}-apikey`}
                       type="password"
                       value={apiKeyInput}
                       onChange={(e) => setApiKeyInput(e.target.value)}
                       placeholder="Paste provider API key…"
                       autoComplete="off"
-                      className="min-h-10 w-full rounded-ui border border-line bg-surface px-3 text-sm"
+                      className="min-h-10 text-sm"
                     />
                   </div>
 
-                  <Button type="submit" variant="primary" className="w-full" disabled={discovering}>
+                  <Button type="submit" variant="accent" effect="ticks" className="w-full" disabled={discovering}>
                     {discovering ? (
                       <>
                         <Loader2 aria-hidden className="size-4 animate-spin" />
@@ -692,25 +714,26 @@ function AiViewInner() {
                   finish on the provider).
                 </p>
               </div>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
+              <div className="flex min-h-10 items-center justify-between gap-3">
+                <span className="text-ink">Allow external AI processing of routine &amp; analytics records</span>
+                <SakugaToggle
+                  label="Allow external AI processing of routine and analytics records"
                   checked={ws.aiConsent.granted}
-                  onChange={(e) => void ws.setAiConsent(e.target.checked, ws.aiConsent.includeJournal)}
-                  className="size-4 accent-ink"
+                  onChange={(next) => {
+                    void ws.setAiConsent(next, ws.aiConsent.includeJournal);
+                    toast(next ? "External AI consent granted" : "External AI consent revoked");
+                  }}
                 />
-                <span>Allow external AI processing of routine &amp; analytics records</span>
-              </label>
-              <label className="flex min-h-10 cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
+              </div>
+              <div className="flex min-h-10 items-center justify-between gap-3">
+                <span className="text-ink-2">Also include recent journal &amp; mood entries</span>
+                <SakugaToggle
+                  label="Also include recent journal and mood entries"
                   disabled={!ws.aiConsent.granted}
                   checked={ws.aiConsent.includeJournal}
-                  onChange={(e) => void ws.setAiConsent(ws.aiConsent.granted, e.target.checked)}
-                  className="size-4 accent-ink"
+                  onChange={(next) => void ws.setAiConsent(ws.aiConsent.granted, next)}
                 />
-                <span className="text-ink-2">Also include recent journal &amp; mood entries</span>
-              </label>
+              </div>
             </Card>
           </section>
 

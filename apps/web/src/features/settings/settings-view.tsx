@@ -21,6 +21,7 @@ import {
   Sun,
   User,
 } from "lucide-react";
+import { SakugaToggle, useSakuga } from "@/components/sakuga";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -47,8 +48,10 @@ function Section({
   return (
     <section id={id} aria-labelledby={`${id}-h`}>
       <Card className="p-5">
-        <h2 id={`${id}-h`} className="mb-4 flex items-center gap-3 font-medium">
-          <Icon aria-hidden className="size-5 text-ink-3" />
+        <h2 id={`${id}-h`} className="mb-4 flex items-center gap-3 font-medium text-ink">
+          <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-sk-violet-soft text-sk-violet">
+            <Icon aria-hidden className="size-4" />
+          </span>
           {title}
         </h2>
         {children}
@@ -59,6 +62,7 @@ function Section({
 
 export function SettingsView() {
   const [theme, setTheme] = useThemePreference();
+  const { toast } = useSakuga();
   const auth = useAuth();
   const ws = useWorkspace();
   const [driveActionMsg, setDriveActionMsg] = useState<string | null>(null);
@@ -88,6 +92,7 @@ export function SettingsView() {
     a.download = `justlakshmi-export-${ws.today}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    toast("Workspace JSON exported", "success");
   }
 
   return (
@@ -246,24 +251,25 @@ export function SettingsView() {
 
         <Section id="s-notifications" icon={Bell} title="Notifications">
           <div className="space-y-3 text-sm">
-            <label className="flex min-h-10 cursor-pointer items-center justify-between gap-4">
-              <span>Global reminders master switch</span>
-              <input
-                type="checkbox"
+            <div className="flex min-h-10 items-center justify-between gap-4">
+              <span className="text-ink">Global reminders master switch</span>
+              <SakugaToggle
+                label="Global reminders master switch"
                 checked={ws.notificationPrefs.masterEnabled}
-                onChange={(e) => void ws.updateNotificationPrefs({ masterEnabled: e.target.checked })}
-                className="size-4 accent-ink"
+                onChange={(next) => {
+                  void ws.updateNotificationPrefs({ masterEnabled: next });
+                  toast(next ? "Global reminders enabled" : "Global reminders paused");
+                }}
               />
-            </label>
-            <label className="flex min-h-10 cursor-pointer items-center justify-between gap-4">
-              <span>Supportive quote wording</span>
-              <input
-                type="checkbox"
+            </div>
+            <div className="flex min-h-10 items-center justify-between gap-4">
+              <span className="text-ink">Supportive quote wording</span>
+              <SakugaToggle
+                label="Supportive quote wording"
                 checked={ws.notificationPrefs.motivationalCopy}
-                onChange={(e) => void ws.updateNotificationPrefs({ motivationalCopy: e.target.checked })}
-                className="size-4 accent-ink"
+                onChange={(next) => void ws.updateNotificationPrefs({ motivationalCopy: next })}
               />
-            </label>
+            </div>
             <p className="text-xs text-ink-3">
               Scheduled Web Push delivery requires the Render background worker and VAPID keys (deferred). On iPhone, Web Push
               requires iOS 16.4+ installed to the Home Screen and is not equivalent to an exact-second native alarm.

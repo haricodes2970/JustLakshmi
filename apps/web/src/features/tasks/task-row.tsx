@@ -51,21 +51,28 @@ export function TaskRow({
   const step = mode === "duration" ? 5 : target && target >= 500 ? 250 : 1;
 
   return (
-    <li className="px-4 py-3">
+    <li className={cn("px-4 py-3.5 transition-colors", completed && "bg-surface-2/40")}>
       <div className="flex items-center gap-3">
         {scheduledToday ? (
-          <TaskCheck checked={completed} onToggle={onToggle} label={`${title}${time ? `, ${formatTime(time)}` : ""}`} />
+          <TaskCheck
+            checked={completed}
+            onToggle={onToggle}
+            celebrate={Boolean(time)}
+            label={`${title}${time ? `, ${formatTime(time)}` : ""}`}
+          />
         ) : (
           <span className="-m-2 grid size-11 shrink-0 place-items-center text-ink-3" title="Not scheduled today">
             <CalendarOff aria-hidden className="size-5" />
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <p className={cn("truncate text-[0.9375rem] font-medium", completed && "text-ink-3 line-through")}>{title}</p>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-3">
+          <p className={cn("truncate text-[0.9375rem] font-medium transition-colors", completed && "text-ink-3 line-through")}>
+            {title}
+          </p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-3">
             {time ? (
               <span className="inline-flex items-center gap-1">
-                <Clock aria-hidden className="size-3" />
+                <Clock aria-hidden className="size-3 text-sk-violet" />
                 {formatTime(time)}
               </span>
             ) : (
@@ -77,9 +84,11 @@ export function TaskRow({
                 {schedule}
               </span>
             ) : null}
-            {category ? <span>{category}</span> : null}
+            {category ? (
+              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-2">{category}</span>
+            ) : null}
             {mode !== "checkbox" && target !== undefined ? (
-              <span className="font-medium text-ink-2 tabular-nums">
+              <span className="font-semibold text-sk-violet tabular-nums">
                 {progressValue} / {target} {displayUnit}
               </span>
             ) : null}
@@ -99,20 +108,29 @@ export function TaskRow({
             </button>
           ) : null}
           {actions}
-          <span className="text-xs font-medium text-ink-3">
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[11px] font-medium",
+              !scheduledToday
+                ? "text-ink-3"
+                : completed
+                  ? "bg-sk-success-soft text-sk-success"
+                  : "bg-surface-2 text-ink-3",
+            )}
+          >
             {scheduledToday ? (completed ? "Done" : "Pending") : "Not today"}
           </span>
         </div>
       </div>
 
       {scheduledToday && mode !== "checkbox" && onIncrement ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 pl-9">
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-9">
           <button
             type="button"
             onClick={() => onIncrement(-step)}
             disabled={progressValue <= 0}
             aria-label={`Decrease ${title} by ${step} ${displayUnit}`}
-            className="inline-flex min-h-8 items-center gap-1 rounded-ui border border-line px-2.5 text-xs text-ink-2 hover:bg-surface-2 disabled:opacity-40"
+            className="inline-flex min-h-8 items-center gap-1 rounded-ui border border-line bg-surface px-2.5 text-xs text-ink-2 transition-colors hover:bg-surface-2 active:scale-95 disabled:opacity-40"
           >
             <Minus aria-hidden className="size-3" />
             {step} {displayUnit}
@@ -121,7 +139,7 @@ export function TaskRow({
             type="button"
             onClick={() => onIncrement(step)}
             aria-label={`Add ${step} ${displayUnit} to ${title}`}
-            className="inline-flex min-h-8 items-center gap-1 rounded-ui border border-line bg-surface-2 px-2.5 text-xs font-medium text-ink hover:opacity-80"
+            className="inline-flex min-h-8 items-center gap-1 rounded-ui border border-line-strong/60 bg-sk-violet-soft px-2.5 text-xs font-medium text-ink transition-colors hover:bg-sk-lavender active:scale-95"
           >
             <Plus aria-hidden className="size-3" />
             {step} {displayUnit}
@@ -146,7 +164,7 @@ export function TaskRow({
                   aria-label={`Set exact ${displayUnit} for ${title}`}
                   className="h-8 w-20 rounded-ui border border-line bg-surface px-2 text-xs text-ink"
                 />
-                <button type="submit" className="min-h-8 rounded-ui bg-inverse px-2.5 text-xs text-on-inverse">
+                <button type="submit" className="min-h-8 rounded-ui bg-inverse px-2.5 text-xs font-medium text-on-inverse">
                   Save
                 </button>
               </form>

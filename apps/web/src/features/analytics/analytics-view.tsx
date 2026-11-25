@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart3, Flame } from "lucide-react";
+import { SakugaProgress } from "@/components/sakuga";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, SectionHeading } from "@/components/ui/page-header";
@@ -96,9 +97,12 @@ export function AnalyticsView() {
                   const p = percent(d.completed, d.scheduled);
                   return (
                     <div key={d.date} className="flex h-full flex-1 flex-col items-center justify-end gap-2" aria-hidden>
-                      <span className="text-xs tabular-nums text-ink-3">{p}%</span>
-                      <div className="flex w-full flex-1 items-end rounded-[8px] bg-surface-2">
-                        <div className="w-full rounded-[8px] bg-inverse" style={{ height: `${Math.max(p, 3)}%` }} />
+                      <span className="text-xs font-medium tabular-nums text-ink-3">{p}%</span>
+                      <div className="flex w-full flex-1 items-end overflow-hidden rounded-[8px] border border-line bg-surface-2 p-0.5">
+                        <div
+                          className="w-full rounded-[6px] bg-sk-violet transition-[height] duration-300"
+                          style={{ height: `${Math.max(p, 4)}%` }}
+                        />
                       </div>
                       <span className="text-xs text-ink-3">{weekdayShort(d.date)}</span>
                     </div>
@@ -119,8 +123,8 @@ export function AnalyticsView() {
                 {month.map((d) => {
                   const p = percent(d.completed, d.scheduled);
                   return (
-                    <div key={d.date} aria-hidden className="aspect-square rounded-[6px] bg-surface-2">
-                      <div className="size-full rounded-[6px] bg-inverse" style={{ opacity: Math.max(p / 100, 0.04) }} />
+                    <div key={d.date} aria-hidden className="aspect-square rounded-[6px] border border-line bg-surface-2">
+                      <div className="size-full rounded-[5px] bg-sk-violet" style={{ opacity: Math.max(p / 100, 0.05) }} />
                     </div>
                   );
                 })}
@@ -132,7 +136,7 @@ export function AnalyticsView() {
                 <span className="flex items-center gap-2">
                   Less
                   {[0.15, 0.4, 0.7, 1].map((o) => (
-                    <span key={o} aria-hidden className="size-3 rounded-[4px] bg-inverse" style={{ opacity: o }} />
+                    <span key={o} aria-hidden className="size-3 rounded-[4px] bg-sk-violet" style={{ opacity: o }} />
                   ))}
                   More
                 </span>
@@ -145,11 +149,14 @@ export function AnalyticsView() {
               <SectionHeading id="cat-heading">By category (30 days)</SectionHeading>
               <Card className="divide-y divide-line">
                 {categoriesSummary.map((c) => (
-                  <div key={c.categoryId} className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
-                    <span className="truncate font-medium">{c.name}</span>
-                    <span className="shrink-0 text-ink-3 tabular-nums">
-                      {c.completed}/{c.scheduled} ({c.percent}%)
-                    </span>
+                  <div key={c.categoryId} className="space-y-2 px-5 py-3.5 text-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="truncate font-medium text-ink">{c.name}</span>
+                      <span className="shrink-0 text-ink-3 tabular-nums">
+                        {c.completed}/{c.scheduled} ({c.percent}%)
+                      </span>
+                    </div>
+                    <SakugaProgress percent={c.percent} label={`${c.name} 30-day completion`} />
                   </div>
                 ))}
               </Card>
@@ -160,7 +167,9 @@ export function AnalyticsView() {
             <SectionHeading id="streak-heading">Streaks</SectionHeading>
             <Card className="overflow-hidden">
               <div className="flex items-center gap-4 border-b border-line p-5">
-                <Flame aria-hidden className="size-6 text-ink-2" />
+                <span className="grid size-11 shrink-0 place-items-center rounded-ui border border-line-strong/40 bg-sk-violet-soft text-sk-violet">
+                  <Flame aria-hidden className="size-5" />
+                </span>
                 <div>
                   <p className="font-display text-2xl tabular-nums">
                     {streak} {streak === 1 ? "day" : "days"}

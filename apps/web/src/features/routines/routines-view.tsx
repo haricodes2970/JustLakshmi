@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import type { TaskTemplate } from "@justlakshmi/shared";
+import { SakugaInput, useSakuga } from "@/components/sakuga";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,7 +17,9 @@ import { cn } from "@/lib/cn";
 
 export function RoutinesView() {
   const ws = useWorkspace();
+  const { toast } = useSakuga();
   const [category, setCategory] = useState("all");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [newCatName, setNewCatName] = useState("");
   const [editing, setEditing] = useState<TaskTemplate | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -59,6 +62,7 @@ export function RoutinesView() {
     e.preventDefault();
     if (!editing || !editTitle.trim()) return;
     await ws.editTemplate(editing.id, { title: editTitle.trim(), time: editTime || undefined }, editScope, ws.today);
+    toast("Routine updated", "success");
     setEditing(null);
   }
 
@@ -180,47 +184,69 @@ export function RoutinesView() {
               />
             </Card>
           ) : (
-            groups.map((g) => (
-              <section key={g.id} aria-label={g.name}>
-                <SectionHeading>{g.name}</SectionHeading>
-                <Card className="overflow-hidden">
-                  <ul className="divide-y divide-line">
-                    {g.items.map((t) => {
-                      const scheduledToday = occursOn(t.recurrence, ws.today);
-                      const occ = ws.occurrencesOn(ws.today).find((o) => o.templateId === t.id);
-                      return (
-                        <TaskRow
-                          key={t.id}
-                          title={occ?.titleSnapshot ?? t.title}
-                          time={occ?.time ?? t.time}
-                          schedule={describeRecurrence(t.recurrence)}
-                          scheduledToday={scheduledToday}
-                          completed={occ?.completed ?? false}
-                          mode={t.mode}
-                          progressValue={occ?.progressValue ?? 0}
-                          targetValue={t.targetValue}
-                          unit={t.unit}
-                          targetDurationMinutes={t.targetDurationMinutes}
-                          onToggle={() => void ws.toggleOccurrence(t.id, ws.today)}
-                          onIncrement={(delta) => void ws.recordProgress(t.id, ws.today, delta)}
-                          onCorrect={(val) => void ws.correctProgress(t.id, ws.today, val)}
-                          actions={
-                            <button
-                              type="button"
-                              onClick={() => startEdit(t)}
-                              aria-label={`Edit ${t.title}`}
-                              className="grid size-8 place-items-center rounded-ui text-ink-3 hover:bg-surface-2 hover:text-ink"
-                            >
-                              <Pencil aria-hidden className="size-4" />
-                            </button>
-                          }
+            groups.map((g) => {
+              const isCollapsed = Boolean(collapsed[g.id]);
+              return (
+                <section key={g.id} aria-label={g.name}>
+                  <SectionHeading
+                    trailing={
+                      <button
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        onClick={() => setCollapsed((prev) => ({ ...prev, [g.id]: !prev[g.id] }))}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                      >
+                        <span>{g.items.length}</span>
+                        <ChevronDown
+                          aria-hidden
+                          className={cn("size-3.5 transition-transform duration-150", isCollapsed && "-rotate-90")}
                         />
-                      );
-                    })}
-                  </ul>
-                </Card>
-              </section>
-            ))
+                      </button>
+                    }
+                  >
+                    {g.name}
+                  </SectionHeading>
+                  {!isCollapsed ? (
+                    <Card className="overflow-hidden">
+                      <ul className="divide-y divide-line">
+                        {g.items.map((t) => {
+                          const scheduledToday = occursOn(t.recurrence, ws.today);
+                          const occ = ws.occurrencesOn(ws.today).find((o) => o.templateId === t.id);
+                          return (
+                            <TaskRow
+                              key={t.id}
+                              title={occ?.titleSnapshot ?? t.title}
+                              time={occ?.time ?? t.time}
+                              schedule={describeRecurrence(t.recurrence)}
+                              scheduledToday={scheduledToday}
+                              completed={occ?.completed ?? false}
+                              mode={t.mode}
+                              progressValue={occ?.progressValue ?? 0}
+                              targetValue={t.targetValue}
+                              unit={t.unit}
+                              targetDurationMinutes={t.targetDurationMinutes}
+                              onToggle={() => void ws.toggleOccurrence(t.id, ws.today)}
+                              onIncrement={(delta) => void ws.recordProgress(t.id, ws.today, delta)}
+                              onCorrect={(val) => void ws.correctProgress(t.id, ws.today, val)}
+                              actions={
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(t)}
+                                  aria-label={`Edit ${t.title}`}
+                                  className="grid size-8 place-items-center rounded-ui text-ink-3 hover:bg-surface-2 hover:text-ink"
+                                >
+                                  <Pencil aria-hidden className="size-4" />
+                                </button>
+                              }
+                            />
+                          );
+                        })}
+                      </ul>
+                    </Card>
+                  ) : null}
+                </section>
+              );
+            })
           )}
         </div>
 
@@ -265,14 +291,14 @@ export function RoutinesView() {
                 <label htmlFor="new-category" className="sr-only">
                   New category name
                 </label>
-                <input
+                <SakugaInput
                   id="new-category"
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                   placeholder="New category…"
-                  className="min-h-10 flex-1 rounded-ui border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3"
+                  className="min-h-10 flex-1 text-sm"
                 />
-                <Button type="submit" size="icon" aria-label="Add category">
+                <Button type="submit" size="icon" variant="accent" effect="ticks" aria-label="Add category">
                   <Plus aria-hidden className="size-4" />
                 </Button>
               </form>

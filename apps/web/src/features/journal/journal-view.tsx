@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import type { Mood } from "@justlakshmi/shared";
+import { SakugaTextarea, useSakuga } from "@/components/sakuga";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader, SectionHeading } from "@/components/ui/page-header";
@@ -51,6 +52,7 @@ function entryToForm(entry: ReturnType<ReturnType<typeof useWorkspace>["getJourn
 
 export function JournalView() {
   const ws = useWorkspace();
+  const { fireEffect, toast, reducedMotion } = useSakuga();
   const params = useSearchParams();
   const initialParam = params.get("date");
   const [pickedDate, setPickedDate] = useState<string | null>(initialParam);
@@ -82,7 +84,9 @@ export function JournalView() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     await ws.saveJournal(selected, form);
-    setSavedNotice(`Saved reflection for ${formatLong(selected)}.`);
+    const msg = `Saved reflection for ${formatLong(selected)}.`;
+    setSavedNotice(msg);
+    toast(msg, "success");
   }
 
   const history = [...ws.journalEntries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
@@ -120,10 +124,16 @@ export function JournalView() {
                     key={m.value}
                     type="button"
                     aria-pressed={form.mood === m.value}
-                    onClick={() => updateField("mood", form.mood === m.value ? null : m.value)}
+                    onClick={(e) => {
+                      const next = form.mood === m.value ? null : m.value;
+                      if (next && !reducedMotion) fireEffect("ticks", e.currentTarget, { scale: 0.7, accent: "pink" });
+                      updateField("mood", next);
+                    }}
                     className={cn(
-                      "min-h-10 rounded-ui border px-3.5 text-sm transition-colors",
-                      form.mood === m.value ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2 hover:bg-surface-2",
+                      "min-h-10 rounded-ui border px-3.5 text-sm font-medium transition-colors active:scale-95",
+                      form.mood === m.value
+                        ? "border-2 border-line-strong bg-sk-violet text-white sk-ink-shadow"
+                        : "border-line bg-surface text-ink-2 hover:border-sk-violet/60 hover:bg-surface-2",
                     )}
                   >
                     {m.label}
@@ -141,10 +151,16 @@ export function JournalView() {
                       key={n}
                       type="button"
                       aria-pressed={form.energy === n}
-                      onClick={() => updateField("energy", form.energy === n ? null : n)}
+                      onClick={(e) => {
+                        const next = form.energy === n ? null : n;
+                        if (next && !reducedMotion) fireEffect("ticks", e.currentTarget, { scale: 0.6, accent: "violet" });
+                        updateField("energy", next);
+                      }}
                       className={cn(
-                        "min-h-10 flex-1 rounded-ui border text-sm font-medium tabular-nums",
-                        form.energy === n ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2",
+                        "min-h-10 flex-1 rounded-ui border text-sm font-medium tabular-nums transition-colors active:scale-95",
+                        form.energy === n
+                          ? "border-2 border-line-strong bg-inverse text-on-inverse"
+                          : "border-line bg-surface text-ink-2 hover:bg-surface-2",
                       )}
                     >
                       {n}
@@ -161,10 +177,16 @@ export function JournalView() {
                       key={n}
                       type="button"
                       aria-pressed={form.stress === n}
-                      onClick={() => updateField("stress", form.stress === n ? null : n)}
+                      onClick={(e) => {
+                        const next = form.stress === n ? null : n;
+                        if (next && !reducedMotion) fireEffect("ticks", e.currentTarget, { scale: 0.6, accent: "pink" });
+                        updateField("stress", next);
+                      }}
                       className={cn(
-                        "min-h-10 flex-1 rounded-ui border text-sm font-medium tabular-nums",
-                        form.stress === n ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2",
+                        "min-h-10 flex-1 rounded-ui border text-sm font-medium tabular-nums transition-colors active:scale-95",
+                        form.stress === n
+                          ? "border-2 border-line-strong bg-inverse text-on-inverse"
+                          : "border-line bg-surface text-ink-2 hover:bg-surface-2",
                       )}
                     >
                       {n}
@@ -191,18 +213,19 @@ export function JournalView() {
                 <label htmlFor={`j-${key}`} className="mb-1.5 block text-sm font-medium text-ink-2">
                   {label}
                 </label>
-                <textarea
+                <SakugaTextarea
                   id={`j-${key}`}
                   rows={key === "notes" ? 3 : 2}
                   value={form[key]}
                   onChange={(e) => updateField(key, e.target.value)}
-                  className="w-full rounded-ui border border-line bg-surface px-3 py-2 text-ink placeholder:text-ink-3"
                 />
               </div>
             ))}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <Button type="submit">Save reflection</Button>
+              <Button type="submit" variant="accent" effect="burst">
+                Save reflection
+              </Button>
               <p role="status" aria-live="polite" className="text-sm text-ink-3">
                 {savedNotice}
               </p>
